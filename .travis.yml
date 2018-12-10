@@ -29,13 +29,13 @@ script:
       mkdir -p appdir/usr/share/gpxsee/maps #175
       mkdir -p appdir/usr/share/gpxsee/csv #175
       mkdir -p appdir/usr/share/gpxsee/translations #175
-      cp GPXSee usr/bin/ #175
-      cp pkg/maps/* usr/share/gpxsee/maps/ #175
-      cp pkg/csv/* usr/share/gpxsee/csv/ #175
-      cp lang/*.qm usr/share/gpxsee/translations/ #175
-      cp icons/gpxsee.png usr/share/pixmaps/gpxsee.png #175
-      cp pkg/gpxsee.desktop usr/share/applications/gpxsee.desktop #175
-      cp pkg/gpxsee.xml usr/share/mime/packages/gpxsee.xml #175
+      cp GPXSee appdir/usr/bin/ #175
+      cp pkg/maps/* appdir/usr/share/gpxsee/maps/ #175
+      cp pkg/csv/* appdir/usr/share/gpxsee/csv/ #175
+      cp lang/*.qm appdir/usr/share/gpxsee/translations/ #175
+      cp icons/gpxsee.png appdir/usr/share/pixmaps/gpxsee.png #175
+      cp pkg/gpxsee.desktop appdir/usr/share/applications/gpxsee.desktop #175
+      cp pkg/gpxsee.xml appdir/usr/share/mime/packages/gpxsee.xml #175
       find appdir/
       wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
       chmod a+x linuxdeployqt-continuous-x86_64.AppImage
