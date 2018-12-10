@@ -29,7 +29,7 @@ script:
       mkdir -p appdir/usr/share/gpxsee/maps #175
       mkdir -p appdir/usr/share/gpxsee/csv #175
       mkdir -p appdir/usr/share/gpxsee/translations #175
-      cp GPXSee appdir/usr/bin/ #175
+      cp GPXSee appdir/usr/bin/gpxsee #175
       cp pkg/maps/* appdir/usr/share/gpxsee/maps/ #175
       cp pkg/csv/* appdir/usr/share/gpxsee/csv/ #175
       cp lang/*.qm appdir/usr/share/gpxsee/translations/ #175
