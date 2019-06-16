@@ -1,6 +1,8 @@
+#include <QApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QLineF>
+#include "common/config.h"
 #include "gpxparser.h"
 #include "tcxparser.h"
 #include "csvparser.h"
@@ -11,6 +13,11 @@
 #include "oziparsers.h"
 #include "locparser.h"
 #include "slfparser.h"
+#ifdef ENABLE_GEOJSON
+#include "geojsonparser.h"
+#endif // ENABLE_GEOJSON
+#include "exifparser.h"
+#include "dem.h"
 #include "data.h"
 
 
@@ -26,6 +33,10 @@ static WPTParser wpt;
 static RTEParser rte;
 static LOCParser loc;
 static SLFParser slf;
+#ifdef ENABLE_GEOJSON
+static GeoJSONParser geojson;
+#endif // ENABLE_GEOJSON
+static EXIFParser exif;
 
 static QHash<QString, Parser*> parsers()
 {
@@ -43,57 +54,71 @@ static QHash<QString, Parser*> parsers()
 	hash.insert("rte", &rte);
 	hash.insert("loc", &loc);
 	hash.insert("slf", &slf);
+#ifdef ENABLE_GEOJSON
+	hash.insert("json", &geojson);
+	hash.insert("geojson", &geojson);
+#endif // ENABLE_GEOJSON
+	hash.insert("jpeg", &exif);
+	hash.insert("jpg", &exif);
 
 	return hash;
 }
 
 
 QHash<QString, Parser*> Data::_parsers = parsers();
+bool Data::_useDEM = false;
 
-Data::~Data()
+void Data::processData(const QList<TrackData> &trackData,
+  const QList<RouteData> &routeData)
 {
-	for (int i = 0; i < _tracks.count(); i++)
-		delete _tracks.at(i);
-	for (int i = 0; i < _routes.count(); i++)
-		delete _routes.at(i);
+	for (int i = 0; i < trackData.count(); i++)
+		_tracks.append(Track(trackData.at(i)));
+	for (int i = 0; i < routeData.count(); i++)
+		_routes.append(Route(routeData.at(i)));
+	for (int i = 0; i < _waypoints.size(); i++) {
+		if (!_waypoints.at(i).hasElevation() || _useDEM) {
+			qreal elevation = DEM::elevation(_waypoints.at(i).coordinates());
+			if (!std::isnan(elevation))
+				_waypoints[i].setElevation(elevation);
+		}
+	}
 }
 
-void Data::processData()
-{
-	for (int i = 0; i < _trackData.count(); i++)
-		_tracks.append(new Track(_trackData.at(i)));
-	for (int i = 0; i < _routeData.count(); i++)
-		_routes.append(new Route(_routeData.at(i)));
-}
-
-bool Data::loadFile(const QString &fileName)
+Data::Data(const QString &fileName, bool poi)
 {
 	QFile file(fileName);
 	QFileInfo fi(fileName);
+	QList<TrackData> trackData;
+	QList<RouteData> routeData;
 
-
-	_errorString.clear();
+	_valid = false;
 	_errorLine = 0;
 
 	if (!file.open(QFile::ReadOnly)) {
 		_errorString = qPrintable(file.errorString());
-		return false;
+		return;
 	}
 
 	QHash<QString, Parser*>::iterator it;
 	if ((it = _parsers.find(fi.suffix().toLower())) != _parsers.end()) {
-		if (it.value()->parse(&file, _trackData, _routeData, _waypoints)) {
-			processData();
-			return true;
+		if (it.value()->parse(&file, trackData, routeData, _polygons,
+		  _waypoints)) {
+			if (!poi)
+				processData(trackData, routeData);
+			_valid = true;
+			return;
+		} else {
+			_errorLine = it.value()->errorLine();
+			_errorString = it.value()->errorString();
 		}
-
-		_errorLine = it.value()->errorLine();
-		_errorString = it.value()->errorString();
 	} else {
 		for (it = _parsers.begin(); it != _parsers.end(); it++) {
-			if (it.value()->parse(&file, _trackData, _routeData, _waypoints)) {
-				processData();
-				return true;
+			if (it.value()->parse(&file, trackData, routeData, _polygons,
+			  _waypoints)) {
+				if (!poi)
+					processData(trackData, routeData);
+				_valid = true;
+				return;
 			}
 			file.reset();
 		}
@@ -106,22 +131,36 @@ bool Data::loadFile(const QString &fileName)
 		_errorLine = 0;
 		_errorString = "Unknown format";
 	}
-
-	return false;
 }
 
 QString Data::formats()
 {
+	QStringList l(filter());
+	qSort(l);
+	QString supported;
+	for (int i = 0; i < l.size(); i++) {
+		supported += l.at(i);
+		if (i != l.size() - 1)
+			supported += " ";
+	}
+
 	return
-	  tr("Supported files")
-	  + " (*.csv *.fit *.gpx *.igc *.kml *.loc *.nmea *.plt *.rte *.slf *.tcx *.wpt);;"
-	  + tr("CSV files") + " (*.csv);;" + tr("FIT files") + " (*.fit);;"
-	  + tr("GPX files") + " (*.gpx);;" + tr("IGC files") + " (*.igc);;"
-	  + tr("KML files") + " (*.kml);;" + tr("LOC files") + " (*.loc);;"
-	  + tr("NMEA files") + " (*.nmea);;"
-	  + tr("OziExplorer files") + " (*.plt *.rte *.wpt);;"
-	  + tr("SLF files") + " (*.slf);;" + tr("TCX files") + " (*.tcx);;"
-	  + tr("All files") + " (*)";
+	  qApp->translate("Data", "Supported files") + " (" + supported + ");;"
+	  + qApp->translate("Data", "CSV files") + " (*.csv);;"
+	  + qApp->translate("Data", "FIT files") + " (*.fit);;"
+#ifdef ENABLE_GEOJSON
+	  + qApp->translate("Data", "GeoJSON files") + " (*.geojson *.json);;"
+#endif // ENABLE_GEOJSON
+	  + qApp->translate("Data", "GPX files") + " (*.gpx);;"
+	  + qApp->translate("Data", "IGC files") + " (*.igc);;"
+	  + qApp->translate("Data", "JPEG images") + " (*.jpg *.jpeg);;"
+	  + qApp->translate("Data", "KML files") + " (*.kml);;"
+	  + qApp->translate("Data", "LOC files") + " (*.loc);;"
+	  + qApp->translate("Data", "NMEA files") + " (*.nmea);;"
+	  + qApp->translate("Data", "OziExplorer files") + " (*.plt *.rte *.wpt);;"
+	  + qApp->translate("Data", "SLF files") + " (*.slf);;"
+	  + qApp->translate("Data", "TCX files") + " (*.tcx);;"
+	  + qApp->translate("Data", "All files") + " (*)";
 }
 
 QStringList Data::filter()
@@ -133,4 +172,11 @@ QStringList Data::filter()
 		filter << QString("*.%1").arg(it.key());
 
 	return filter;
+}
+
+void Data::useDEM(bool use)
+{
+	_useDEM = use;
+	Route::useDEM(use);
+	Track::useDEM(use);
 }

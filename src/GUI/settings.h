@@ -9,6 +9,7 @@
 #define WINDOW_SIZE_DEFAULT               QSize(600, 800)
 #define WINDOW_POS_SETTING                "pos"
 #define WINDOW_POS_DEFAULT                QPoint(10, 10)
+#define WINDOW_STATE_SETTING              "state"
 
 #define SETTINGS_SETTINGS_GROUP           "Settings"
 #define TIME_TYPE_SETTING                 "timeType"
@@ -29,11 +30,17 @@
 #define SHOW_GRAPH_GRIDS_DEFAULT          true
 #define SHOW_GRAPH_SLIDER_INFO_SETTING    "sliderInfo"
 #define SHOW_GRAPH_SLIDER_INFO_DEFAULT    true
+#define SHOW_MARKERS_SETTING              "pathMarkers"
+#define SHOW_MARKERS_DEFAULT              true
+#define SHOW_TICKS_SETTING                "pathTicks"
+#define SHOW_TICKS_DEFAULT                false
 
 #define MAP_SETTINGS_GROUP                "Map"
 #define CURRENT_MAP_SETTING               "map"
 #define SHOW_MAP_SETTING                  "show"
 #define SHOW_MAP_DEFAULT                  true
+#define SHOW_COORDINATES_SETTING          "coordinates"
+#define SHOW_COORDINATES_DEFAULT          false
 
 #define POI_SETTINGS_GROUP                "POI"
 #define OVERLAP_POI_SETTING               "overlap"
@@ -52,6 +59,8 @@
 #define SHOW_ROUTES_DEFAULT               true
 #define SHOW_WAYPOINTS_SETTING            "waypoints"
 #define SHOW_WAYPOINTS_DEFAULT            true
+#define SHOW_AREAS_SETTING                "areas"
+#define SHOW_AREAS_DEFAULT                true
 #define SHOW_ROUTE_WAYPOINTS_SETTING      "routeWaypoints"
 #define SHOW_ROUTE_WAYPOINTS_DEFAULT      true
 #define SHOW_WAYPOINT_LABELS_SETTING      "waypointLabels"
@@ -90,10 +99,16 @@
 #define TRACK_WIDTH_DEFAULT               3
 #define ROUTE_WIDTH_SETTING               "routeWidth"
 #define ROUTE_WIDTH_DEFAULT               3
+#define AREA_WIDTH_SETTING                "areaWidth"
+#define AREA_WIDTH_DEFAULT                2
 #define TRACK_STYLE_SETTING               "trackStyle"
 #define TRACK_STYLE_DEFAULT               Qt::SolidLine
 #define ROUTE_STYLE_SETTING               "routeStyle"
 #define ROUTE_STYLE_DEFAULT               Qt::DotLine
+#define AREA_STYLE_SETTING                "areaStyle"
+#define AREA_STYLE_DEFAULT                Qt::SolidLine
+#define AREA_OPACITY_SETTING              "areaOpacity"
+#define AREA_OPACITY_DEFAULT              50
 #define WAYPOINT_SIZE_SETTING             "waypointSize"
 #define WAYPOINT_SIZE_DEFAULT             8
 #define WAYPOINT_COLOR_SETTING            "waypointColor"
@@ -126,8 +141,12 @@
 #define PAUSE_INTERVAL_DEFAULT            10 /* s */
 #define USE_REPORTED_SPEED_SETTING        "useReportedSpeed"
 #define USE_REPORTED_SPEED_DEFAULT        false
+#define DATA_USE_DEM_SETTING              "dataUseDEM"
+#define DATA_USE_DEM_DEFAULT              false
 #define POI_RADIUS_SETTING                "poiRadius"
 #define POI_RADIUS_DEFAULT                (int)(IMPERIAL_UNITS() ? MIINM : KMINM)
+#define POI_USE_DEM_SETTING               "poiUseDEM"
+#define POI_USE_DEM_DEFAULT               false
 #define USE_OPENGL_SETTING                "useOpenGL"
 #define USE_OPENGL_DEFAULT                false
 #define ENABLE_HTTP2_SETTING              "enableHTTP2"
@@ -154,8 +173,8 @@
 #define SEPARATE_GRAPH_PAGE_DEFAULT       false
 #define SLIDER_COLOR_SETTING              "sliderColor"
 #define SLIDER_COLOR_DEFAULT              QColor(Qt::red)
-#define ALWAYS_SHOW_MAP_SETTING           "alwaysShowMap"
-#define ALWAYS_SHOW_MAP_DEFAULT           true
+#define PROJECTION_SETTING                "projection"
+#define PROJECTION_DEFAULT                3857
 #define HIDPI_MAP_SETTING                 "HiDPIMap"
 #define HIDPI_MAP_DEFAULT                 true
 

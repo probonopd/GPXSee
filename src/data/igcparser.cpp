@@ -112,7 +112,7 @@ bool IGCParser::readHRecord(const char *line, int len)
 		return false;
 	}
 
-	_date = QDate(y + 2000 < QDate::currentDate().year() ? 2000 + y : 1900 + y,
+	_date = QDate(y + 2000 <= QDate::currentDate().year() ? 2000 + y : 1900 + y,
 	  m, d);
 	if (!_date.isValid()) {
 		_errorString = "Invalid date";
@@ -122,11 +122,11 @@ bool IGCParser::readHRecord(const char *line, int len)
 	return true;
 }
 
-bool IGCParser::readBRecord(TrackData &track, const char *line, int len)
+bool IGCParser::readBRecord(SegmentData &segment, const char *line,
+  int len)
 {
 	qreal lat, lon, ele;
 	QTime time;
-
 
 	if (len < 35)
 		return false;
@@ -150,15 +150,15 @@ bool IGCParser::readBRecord(TrackData &track, const char *line, int len)
 		return false;
 	}
 
-
-	if (time < _time)
+	if (time < _time && !segment.isEmpty()
+	  && _date == segment.last().timestamp().date())
 		_date = _date.addDays(1);
 	_time = time;
 
 	Trackpoint t(Coordinates(lon, lat));
 	t.setTimestamp(QDateTime(_date, _time, Qt::UTC));
 	t.setElevation(ele);
-	track.append(t);
+	segment.append(t);
 
 	return true;
 }
@@ -192,9 +192,11 @@ bool IGCParser::readCRecord(RouteData &route, const char *line, int len)
 }
 
 bool IGCParser::parse(QFile *file, QList<TrackData> &tracks,
-  QList<RouteData> &routes, QList<Waypoint> &waypoints)
+  QList<RouteData> &routes, QList<Area> &polygons,
+  QVector<Waypoint> &waypoints)
 {
 	Q_UNUSED(waypoints);
+	Q_UNUSED(polygons);
 	qint64 len;
 	char line[76 + 2 + 1 + 1];
 	bool route = false, track = false;
@@ -238,10 +240,11 @@ bool IGCParser::parse(QFile *file, QList<TrackData> &tracks,
 				}
 				if (!track) {
 					tracks.append(TrackData());
+					tracks.last().append(SegmentData());
 					_time = QTime(0, 0);
 					track = true;
 				}
-				if (!readBRecord(tracks.last(), line, len))
+				if (!readBRecord(tracks.last().last(), line, len))
 					return false;
 			}
 		}

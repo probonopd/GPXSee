@@ -3,6 +3,10 @@
 #include "common/rectc.h"
 #include "common/greatcircle.h"
 #include "data.h"
+#include "dem.h"
+#include "path.h"
+#include "area.h"
+#include "common/wgs84.h"
 #include "poi.h"
 
 
@@ -10,17 +14,18 @@ POI::POI(QObject *parent) : QObject(parent)
 {
 	_errorLine = 0;
 	_radius = 1000;
+	_useDEM = false;
 }
 
 bool POI::loadFile(const QString &path, bool dir)
 {
-	Data data;
+	Data data(path, true);
 	FileIndex index;
 
 	index.enabled = true;
 	index.start = _data.size();
 
-	if (!data.loadFile(path)) {
+	if (!data.isValid()) {
 		if (dir) {
 			if (data.errorLine())
 				_errorString += QString("%1:%2: %3\n").arg(path)
@@ -107,6 +112,17 @@ void POI::search(const RectC &rect, QSet<int> &set) const
 	_tree.Search(min, max, cb, &set);
 }
 
+void POI::appendElevation(QList<Waypoint> &points) const
+{
+	for (int i = 0; i < points.size(); i++) {
+		if (!points.at(i).hasElevation() || _useDEM) {
+			qreal elevation = DEM::elevation(points.at(i).coordinates());
+			if (!std::isnan(elevation))
+				points[i].setElevation(elevation);
+		}
+	}
+}
+
 QList<Waypoint> POI::points(const Path &path) const
 {
 	QList<Waypoint> ret;
@@ -114,28 +130,35 @@ QList<Waypoint> POI::points(const Path &path) const
 	QSet<int>::const_iterator it;
 
 
-	for (int i = 1; i < path.count(); i++) {
-		double ds = path.at(i).distance() - path.at(i-1).distance();
-		unsigned n = (unsigned)ceil(ds / _radius);
+	for (int i = 0; i < path.count(); i++) {
+		const PathSegment &segment = path.at(i);
 
-		if (n > 1) {
-			GreatCircle gc(path.at(i-1).coordinates(), path.at(i).coordinates());
-			for (unsigned j = 0; j < n; j++) {
-				RectC br(gc.pointAt((double)j/n), _radius);
+		for (int j = 1; j < segment.size(); j++) {
+			double ds = segment.at(j).distance() - segment.at(j-1).distance();
+			unsigned n = (unsigned)ceil(ds / _radius);
+
+			if (n > 1) {
+				GreatCircle gc(segment.at(j-1).coordinates(),
+				  segment.at(j).coordinates());
+				for (unsigned k = 0; k < n; k++) {
+					RectC br(gc.pointAt((double)k/n), _radius);
+					search(br, set);
+				}
+			} else {
+				RectC br(segment.at(j-1).coordinates(), _radius);
 				search(br, set);
 			}
-		} else {
-			RectC br(path.at(i-1).coordinates(), _radius);
-			search(br, set);
 		}
 	}
 
-	RectC br(path.last().coordinates(), _radius);
+	RectC br(path.last().last().coordinates(), _radius);
 	search(br, set);
 
 
 	for (it = set.constBegin(); it != set.constEnd(); ++it)
 		ret.append(_data.at(*it));
+
+	appendElevation(ret);
 
 	return ret;
 }
@@ -157,6 +180,33 @@ QList<Waypoint> POI::points(const Waypoint &point) const
 
 	for (it = set.constBegin(); it != set.constEnd(); ++it)
 		ret.append(_data.at(*it));
+
+	appendElevation(ret);
+
+	return ret;
+}
+
+QList<Waypoint> POI::points(const Area &area) const
+{
+	QList<Waypoint> ret;
+	qreal min[2], max[2];
+	QSet<int> set;
+	QSet<int>::const_iterator it;
+
+	RectC br(area.boundingRect());
+	double offset = rad2deg(_radius / WGS84_RADIUS);
+
+	min[0] = br.topLeft().lon() - offset;
+	min[1] = br.bottomRight().lat() - offset;
+	max[0] = br.bottomRight().lon() + offset;
+	max[1] = br.topLeft().lat() + offset;
+
+	_tree.Search(min, max, cb, &set);
+
+	for (it = set.constBegin(); it != set.constEnd(); ++it)
+		ret.append(_data.at(*it));
+
+	appendElevation(ret);
 
 	return ret;
 }
@@ -200,6 +250,13 @@ void POI::clear()
 void POI::setRadius(unsigned radius)
 {
 	_radius = radius;
+
+	emit pointsChanged();
+}
+
+void POI::useDEM(bool use)
+{
+	_useDEM = use;
 
 	emit pointsChanged();
 }

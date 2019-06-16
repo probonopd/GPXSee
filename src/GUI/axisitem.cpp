@@ -29,8 +29,8 @@ private:
 
 Ticks::Ticks(double minValue, double maxValue, int maxCount)
 {
-	double range = niceNum(maxValue - minValue, 0);
-	_d = niceNum(range / maxCount, 1);
+	double range = niceNum(maxValue - minValue, false);
+	_d = niceNum(range / maxCount, true);
 	_min = ceil(minValue / _d) * _d;
 	_max = floor(maxValue / _d) * _d;
 }
@@ -111,10 +111,11 @@ void AxisItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 	QFontMetrics fm(_font);
 	QRect ts;
 
-
 	painter->setRenderHint(QPainter::Antialiasing, false);
 	painter->setFont(_font);
-	painter->setPen(QPen(Qt::black, AXIS_WIDTH));
+	QPen pen(painter->pen());
+	pen.setWidth(AXIS_WIDTH);
+	painter->setPen(pen);
 
 	if (_type == X) {
 		painter->drawLine(0, 0, _size, 0);

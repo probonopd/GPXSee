@@ -65,6 +65,7 @@ MBTilesMap::MBTilesMap(const QString &fileName, QObject *parent)
 {
 	_db = QSqlDatabase::addDatabase("QSQLITE", fileName);
 	_db.setDatabaseName(fileName);
+	_db.setConnectOptions("QSQLITE_OPEN_READONLY");
 
 	if (!_db.open()) {
 		_errorString = fileName + ": Error opening database file";
@@ -146,7 +147,7 @@ MBTilesMap::MBTilesMap(const QString &fileName, QObject *parent)
 			if (query.value(0).toString() == "pbf")
 				_scalable = true;
 		} else
-			qWarning("%s: missing map name", qPrintable(_fileName));
+			qWarning("%s: missing tiles format", qPrintable(_fileName));
 	}
 
 	{

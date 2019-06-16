@@ -4,15 +4,18 @@
 #include <QString>
 #include <QList>
 #include "common/kv.h"
+#include "data/imageinfo.h"
 
 class ToolTip
 {
 public:
 	void insert(const QString &key, const QString &value);
-	QString toString();
+	void setImage(const ImageInfo &image) {_img = image;}
+	QString toString() const;
 
 private:
 	QList<KV> _list;
+	ImageInfo _img;
 };
 
 #endif // TOOLTIP_H

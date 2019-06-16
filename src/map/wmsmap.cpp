@@ -11,6 +11,7 @@
 
 #define CAPABILITIES_FILE "capabilities.xml"
 #define TILE_SIZE 256
+#define EPSILON 1e-6
 
 double WMSMap::sd2res(double scaleDenominator) const
 {
@@ -50,14 +51,15 @@ void WMSMap::computeZooms(const RangeF &scaleDenominator)
 	_zooms.clear();
 
 	if (scaleDenominator.size() > 0) {
-		double ld = log2(scaleDenominator.max()) - log2(scaleDenominator.min());
+		double ld = log2(scaleDenominator.max() - EPSILON)
+		  - log2(scaleDenominator.min() + EPSILON);
 		int cld = (int)ceil(ld);
 		double step = ld / (double)cld;
-		double lmax = log2(scaleDenominator.max());
+		double lmax = log2(scaleDenominator.max() - EPSILON);
 		for (int i = 0; i <= cld; i++)
 			_zooms.append(pow(2.0, lmax - i * step));
 	} else
-		_zooms.append(scaleDenominator.min());
+		_zooms.append(scaleDenominator.min() + EPSILON);
 }
 
 void WMSMap::updateTransform()
@@ -65,12 +67,8 @@ void WMSMap::updateTransform()
 	double pixelSpan = sd2res(_zooms.at(_zoom));
 	if (_projection.isGeographic())
 		pixelSpan /= deg2rad(WGS84_RADIUS);
-	double sx = _bbox.width() / pixelSpan;
-	double sy = _bbox.height() / pixelSpan;
-
-	ReferencePoint tl(PointD(0, 0), _bbox.topLeft());
-	ReferencePoint br(PointD(sx, sy), _bbox.bottomRight());
-	_transform = Transform(tl, br);
+	_transform = Transform(ReferencePoint(PointD(0, 0),
+	  _projection.ll2xy(_bbox.topLeft())), PointD(pixelSpan, pixelSpan));
 }
 
 bool WMSMap::loadWMS()
@@ -84,8 +82,8 @@ bool WMSMap::loadWMS()
 	}
 
 	_projection = wms.projection();
-	_bbox = RectD(_projection.ll2xy(wms.boundingBox().topLeft()),
-	  _projection.ll2xy(wms.boundingBox().bottomRight()));
+	_bbox = wms.boundingBox();
+	_bounds = RectD(_bbox, _projection);
 	_tileLoader->setUrl(tileUrl(wms.version()));
 
 	if (wms.version() >= "1.3.0") {
@@ -124,17 +122,15 @@ void WMSMap::clearCache()
 
 QRectF WMSMap::bounds()
 {
-	return QRectF(_transform.proj2img(_bbox.topLeft()) / _mapRatio,
-	  _transform.proj2img(_bbox.bottomRight()) / _mapRatio);
+	return QRectF(_transform.proj2img(_bounds.topLeft()) / _mapRatio,
+	  _transform.proj2img(_bounds.bottomRight()) / _mapRatio);
 }
 
 int WMSMap::zoomFit(const QSize &size, const RectC &rect)
 {
 	if (rect.isValid()) {
-		PointD tl(_projection.ll2xy(rect.topLeft()));
-		PointD br(_projection.ll2xy(rect.bottomRight()));
-		PointD sc((br.x() - tl.x()) / size.width(), (tl.y() - br.y())
-		  / size.height());
+		RectD prect(rect, _projection);
+		PointD sc(prect.width() / size.width(), prect.height() / size.height());
 		double resolution = qMax(qAbs(sc.x()), qAbs(sc.y()));
 		if (_projection.isGeographic())
 			resolution *= deg2rad(WGS84_RADIUS);
@@ -200,13 +196,13 @@ void WMSMap::draw(QPainter *painter, const QRectF &rect, Flags flags)
 		for (int j = tl.y(); j < br.y(); j++) {
 			PointD ttl(_transform.img2proj(QPointF(i * TILE_SIZE,
 			  j * TILE_SIZE)));
-			PointD tbr(_transform.img2proj(QPointF(i * TILE_SIZE + TILE_SIZE
-			  - 1, j * TILE_SIZE + TILE_SIZE - 1)));
+			PointD tbr(_transform.img2proj(QPointF(i * TILE_SIZE + TILE_SIZE,
+			  j * TILE_SIZE + TILE_SIZE)));
 			RectD bbox = (_cs.axisOrder() == CoordinateSystem::YX)
 			  ? RectD(PointD(tbr.y(), tbr.x()), PointD(ttl.y(), ttl.x()))
 			  : RectD(ttl, tbr);
 
-			tiles.append(Tile(QPoint(i, j), _zoom, 0, bbox));
+			tiles.append(Tile(QPoint(i, j), _zoom, bbox));
 		}
 	}
 

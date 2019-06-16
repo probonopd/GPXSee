@@ -15,14 +15,18 @@ class QComboBox;
 class QCheckBox;
 class QRadioButton;
 class PercentSlider;
+class LimitedComboBox;
 
 struct Options {
 	// Appearance
 	Palette palette;
 	int trackWidth;
 	int routeWidth;
+	int areaWidth;
 	Qt::PenStyle trackStyle;
 	Qt::PenStyle routeStyle;
+	Qt::PenStyle areaStyle;
+	int areaOpacity;
 	QColor waypointColor;
 	QColor poiColor;
 	int waypointSize;
@@ -34,7 +38,7 @@ struct Options {
 	int mapOpacity;
 	QColor backgroundColor;
 	// Map
-	bool alwaysShowMap;
+	int projection;
 #ifdef ENABLE_HIDPI
 	bool hidpiMap;
 #endif // ENABLE_HIDPI
@@ -48,8 +52,10 @@ struct Options {
 	qreal pauseSpeed;
 	int pauseInterval;
 	bool useReportedSpeed;
+	bool dataUseDEM;
 	// POI
 	int poiRadius;
+	bool poiUseDEM;
 	// System
 	bool useOpenGL;
 #ifdef ENABLE_HTTP2
@@ -74,11 +80,11 @@ class OptionsDialog : public QDialog
 {
 	Q_OBJECT
 
-public:
-	OptionsDialog(Options *options, QWidget *parent = 0);
-
 public slots:
 	void accept();
+
+public:
+	OptionsDialog(Options *options, QWidget *parent = 0);
 
 private:
 	QWidget *createMapPage();
@@ -99,6 +105,9 @@ private:
 	StyleComboBox *_trackStyle;
 	QSpinBox *_routeWidth;
 	StyleComboBox *_routeStyle;
+	QSpinBox *_areaWidth;
+	StyleComboBox *_areaStyle;
+	PercentSlider *_areaOpacity;
 	QCheckBox *_pathAA;
 	QSpinBox *_waypointSize;
 	ColorBox *_waypointColor;
@@ -108,7 +117,7 @@ private:
 	ColorBox *_sliderColor;
 	QCheckBox *_graphAA;
 	// Map
-	QCheckBox *_alwaysShowMap;
+	LimitedComboBox *_projection;
 #ifdef ENABLE_HIDPI
 	QRadioButton *_hidpi;
 	QRadioButton *_lodpi;
@@ -122,10 +131,14 @@ private:
 	QCheckBox *_outlierEliminate;
 	QDoubleSpinBox *_pauseSpeed;
 	QSpinBox *_pauseInterval;
-	QRadioButton *_computed;
-	QRadioButton *_reported;
+	QRadioButton *_computedSpeed;
+	QRadioButton *_reportedSpeed;
+	QRadioButton *_dataGPSElevation;
+	QRadioButton *_dataDEMElevation;
 	// POI
 	QDoubleSpinBox *_poiRadius;
+	QRadioButton *_poiGPSElevation;
+	QRadioButton *_poiDEMElevation;
 	// System
 	QSpinBox *_pixmapCache;
 	QSpinBox *_connectionTimeout;

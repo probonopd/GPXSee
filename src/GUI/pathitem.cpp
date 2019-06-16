@@ -3,35 +3,42 @@
 #include <QPainter>
 #include "common/greatcircle.h"
 #include "map/map.h"
+#include "pathtickitem.h"
 #include "pathitem.h"
 
 
 #define GEOGRAPHICAL_MILE 1855.3248
 
-static unsigned segments(qreal distance)
+static inline bool isValid(const QPointF &p)
+{
+	return (!std::isnan(p.x()) && !std::isnan(p.y()));
+}
+
+static inline unsigned segments(qreal distance)
 {
 	return ceil(distance / GEOGRAPHICAL_MILE);
 }
 
 PathItem::PathItem(const Path &path, Map *map, QGraphicsItem *parent)
-  : QGraphicsObject(parent)
+  : QGraphicsObject(parent), _path(path), _map(map)
 {
-	Q_ASSERT(path.count() >= 2);
+	Q_ASSERT(_path.isValid());
 
-	_path = path;
-	_map = map;
+	_units = Metric;
 	_digitalZoom = 0;
-
 	_width = 3;
 	QBrush brush(Qt::SolidPattern);
 	_pen = QPen(brush, _width);
+	_showMarker = true;
+	_showTicks = false;
 
 	updatePainterPath();
 	updateShape();
+	updateTicks();
 
+	_markerDistance = _path.first().first().distance();
 	_marker = new MarkerItem(this);
-	_marker->setPos(position(_path.at(0).distance()));
-	_markerDistance = _path.at(0).distance();
+	_marker->setPos(position(_markerDistance));
 
 	setCursor(Qt::ArrowCursor);
 	setAcceptHoverEvents(true);
@@ -74,23 +81,27 @@ void PathItem::updatePainterPath()
 {
 	_painterPath = QPainterPath();
 
-	_painterPath.moveTo(_map->ll2xy(_path.first().coordinates()));
-	for (int i = 1; i < _path.size(); i++) {
-		const PathPoint &p1 = _path.at(i-1);
-		const PathPoint &p2 = _path.at(i);
-		unsigned n = segments(p2.distance() - p1.distance());
+	for (int i = 0; i < _path.size(); i++) {
+		const PathSegment &segment = _path.at(i);
+		_painterPath.moveTo(_map->ll2xy(segment.first().coordinates()));
 
-		if (n > 1) {
-			GreatCircle gc(p1.coordinates(), p2.coordinates());
-			Coordinates last = p1.coordinates();
+		for (int j = 1; j < segment.size(); j++) {
+			const PathPoint &p1 = segment.at(j-1);
+			const PathPoint &p2 = segment.at(j);
+			unsigned n = segments(p2.distance() - p1.distance());
 
-			for (unsigned j = 1; j <= n; j++) {
-				Coordinates c(gc.pointAt(j/(double)n));
-				addSegment(last, c);
-				last = c;
-			}
-		} else
-			addSegment(p1.coordinates(), p2.coordinates());
+			if (n > 1) {
+				GreatCircle gc(p1.coordinates(), p2.coordinates());
+				Coordinates last = p1.coordinates();
+
+				for (unsigned k = 1; k <= n; k++) {
+					Coordinates c(gc.pointAt(k/(double)n));
+					addSegment(last, c);
+					last = c;
+				}
+			} else
+				addSegment(p1.coordinates(), p2.coordinates());
+		}
 	}
 }
 
@@ -104,8 +115,7 @@ void PathItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 	painter->drawPath(_painterPath);
 
 /*
-	QPen p = QPen(QBrush(Qt::red), 0);
-	painter->setPen(p);
+	painter->setPen(Qt::red);
 	painter->drawRect(boundingRect());
 */
 }
@@ -118,8 +128,11 @@ void PathItem::setMap(Map *map)
 
 	updatePainterPath();
 	updateShape();
+	updateTicks();
 
-	_marker->setPos(position(_markerDistance));
+	QPointF pos = position(_markerDistance);
+	if (isValid(pos))
+		_marker->setPos(pos);
 }
 
 void PathItem::setColor(const QColor &color)
@@ -167,35 +180,48 @@ void PathItem::setDigitalZoom(int zoom)
 	updateShape();
 }
 
+const PathSegment *PathItem::segment(qreal x) const
+{
+	for (int i = 0; i < _path.size(); i++)
+		if (x <= _path.at(i).last().distance())
+			return &(_path.at(i));
+
+	return 0;
+}
+
 QPointF PathItem::position(qreal x) const
 {
+	const PathSegment *seg = segment(x);
+	if (!seg)
+		return QPointF(NAN, NAN);
+
 	int low = 0;
-	int high = _path.count() - 1;
+	int high = seg->count() - 1;
 	int mid = 0;
 
-	Q_ASSERT(high > low);
-	Q_ASSERT(x >= _path.at(low).distance() && x <= _path.at(high).distance());
+	if (!(x >= seg->first().distance() && x <= seg->last().distance()))
+		return QPointF(NAN, NAN);
 
 	while (low <= high) {
 		mid = low + ((high - low) / 2);
-		qreal val = _path.at(mid).distance();
+		qreal val = seg->at(mid).distance();
 		if (val > x)
 			high = mid - 1;
 		else if (val < x)
 			low = mid + 1;
 		else
-			return _map->ll2xy(_path.at(mid).coordinates());
+			return _map->ll2xy(seg->at(mid).coordinates());
 	}
 
 	Coordinates c1, c2;
 	qreal p1, p2;
 
-	if (_path.at(mid).distance() < x) {
-		c1 = _path.at(mid).coordinates(); c2 = _path.at(mid+1).coordinates();
-		p1 = _path.at(mid).distance(); p2 = _path.at(mid+1).distance();
+	if (seg->at(mid).distance() < x) {
+		c1 = seg->at(mid).coordinates(); c2 = seg->at(mid+1).coordinates();
+		p1 = seg->at(mid).distance(); p2 = seg->at(mid+1).distance();
 	} else {
-		c1 = _path.at(mid-1).coordinates(); c2 = _path.at(mid).coordinates();
-		p1 = _path.at(mid-1).distance(); p2 = _path.at(mid).distance();
+		c1 = seg->at(mid-1).coordinates(); c2 = seg->at(mid).coordinates();
+		p1 = seg->at(mid-1).distance(); p2 = seg->at(mid).distance();
 	}
 
 	unsigned n = segments(p2 - p1);
@@ -225,11 +251,12 @@ QPointF PathItem::position(qreal x) const
 
 void PathItem::moveMarker(qreal distance)
 {
-	if (distance >= _path.first().distance()
-	  && distance <= _path.last().distance()) {
-		_marker->setVisible(true);
-		_marker->setPos(position(distance));
-		_markerDistance = distance;
+	_markerDistance = distance;
+	QPointF pos(position(distance));
+
+	if (isValid(pos)) {
+		_marker->setVisible(_showMarker);
+		_marker->setPos(pos);
 	} else
 		_marker->setVisible(false);
 }
@@ -250,6 +277,84 @@ void PathItem::hover(bool hover)
 	}
 
 	update();
+}
+
+void PathItem::showMarker(bool show)
+{
+	if (_showMarker == show)
+		return;
+
+	_showMarker = show;
+	_marker->setVisible(show && isValid(position(_markerDistance)));
+}
+
+qreal PathItem::xInM() const
+{
+	return (_units == Nautical) ? NMIINM : (_units == Imperial) ? MIINM : KMINM;
+}
+
+unsigned PathItem::tickSize() const
+{
+	qreal res = _map->resolution(sceneBoundingRect());
+
+	if (res < 10)
+		return 1;
+	else if (res < 25)
+		return 5;
+	else if (res < 100)
+		return 10;
+	else if (res < 500)
+		return 50;
+	else if (res < 2000)
+		return 100;
+	else if (res < 10000)
+		return 500;
+	else if (res < 20000)
+		return 1000;
+	else
+		return 5000;
+}
+
+void PathItem::updateTicks()
+{
+	for (int i = 0; i < _ticks.size(); i++)
+		delete _ticks[i];
+	_ticks.clear();
+
+	if (!_showTicks)
+		return;
+
+	int ts = tickSize();
+	int tc = _path.last().last().distance() / (ts * xInM());
+	QRect tr = PathTickItem::tickRect(ts * tc);
+
+	_ticks.resize(tc);
+	for (int i = 0; i < tc; i++) {
+		_ticks[i] = new PathTickItem(tr, (i + 1) * ts, this);
+		_ticks[i]->setPos(position((i + 1) * ts * xInM()));
+		_ticks[i]->setColor(_pen.color());
+		_ticks[i]->setToolTip(toolTip());
+	}
+}
+
+void PathItem::showTicks(bool show)
+{
+	if (_showTicks == show)
+		return;
+
+	prepareGeometryChange();
+	_showTicks = show;
+	updateTicks();
+}
+
+void PathItem::setUnits(Units units)
+{
+	if (_units == units)
+		return;
+
+	prepareGeometryChange();
+	_units = units;
+	updateTicks();
 }
 
 void PathItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event)

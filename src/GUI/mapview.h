@@ -8,10 +8,13 @@
 #include "common/rectc.h"
 #include "common/config.h"
 #include "data/waypoint.h"
+#include "data/polygon.h"
+#include "map/projection.h"
 #include "searchpointer.h"
 #include "units.h"
 #include "format.h"
 #include "palette.h"
+
 
 class Data;
 class POI;
@@ -22,8 +25,11 @@ class TrackItem;
 class RouteItem;
 class WaypointItem;
 class ScaleItem;
+class CoordinatesItem;
 class PathItem;
 class GraphItem;
+class AreaItem;
+class Area;
 
 class MapView : public QGraphicsView
 {
@@ -46,8 +52,11 @@ public:
 	void setMarkerColor(const QColor &color);
 	void setTrackWidth(int width);
 	void setRouteWidth(int width);
+	void setAreaWidth(int width);
 	void setTrackStyle(Qt::PenStyle style);
 	void setRouteStyle(Qt::PenStyle style);
+	void setAreaStyle(Qt::PenStyle style);
+	void setAreaOpacity(int opacity);
 	void setWaypointSize(int size);
 	void setWaypointColor(const QColor &color);
 	void setPOISize(int size);
@@ -65,11 +74,18 @@ public slots:
 	void showPOILabels(bool show);
 	void showTracks(bool show);
 	void showRoutes(bool show);
+	void showAreas(bool show);
 	void showWaypoints(bool show);
 	void showRouteWaypoints(bool show);
+	void showMarkers(bool show);
+	void showCoordinates(bool show);
+	void showTicks(bool show);
 	void clearMapCache();
 	void setCoordinatesFormat(CoordinatesFormat format);
 	void setDevicePixelRatio(qreal deviceRatio, qreal mapRatio);
+	void setProjection(int id);
+
+	void fitContentToSize();
 
 private slots:
 	void updatePOI();
@@ -78,7 +94,8 @@ private slots:
 private:
 	PathItem *addTrack(const Track &track);
 	PathItem *addRoute(const Route &route);
-	void addWaypoints(const QList<Waypoint> &waypoints);
+	void addArea(const Area &area);
+	void addWaypoints(const QVector<Waypoint> &waypoints);
 	void addPOI(const QList<Waypoint> &waypoints);
 	void loadPOI();
 	void clearPOI();
@@ -90,51 +107,47 @@ private:
 	void zoom(int zoom, const QPoint &pos);
 	void digitalZoom(int zoom);
 	void updatePOIVisibility();
+	void skipColor() {_palette.nextColor();}
 
 	void mouseDoubleClickEvent(QMouseEvent *event);
 	void wheelEvent(QWheelEvent *event);
 	void keyPressEvent(QKeyEvent *event);
 	void drawBackground(QPainter *painter, const QRectF &rect);
-	void resizeEvent(QResizeEvent *event);
 	void paintEvent(QPaintEvent *event);
 	void scrollContentsBy(int dx, int dy);
+	void mouseMoveEvent(QMouseEvent *event);
+	void leaveEvent(QEvent *event);
 
 	QGraphicsScene *_scene;
 	ScaleItem *_mapScale;
+	CoordinatesItem *_coordinates;
 	QList<TrackItem*> _tracks;
 	QList<RouteItem*> _routes;
 	QList<WaypointItem*> _waypoints;
+	QList<AreaItem*> _areas;
 	QHash<SearchPointer<Waypoint>, WaypointItem*> _pois;
 
-	RectC _tr, _rr, _wr;
+	RectC _tr, _rr, _wr, _ar;
 	qreal _res;
 
 	Map *_map;
 	POI *_poi;
+
 	Palette _palette;
 	Units _units;
 	CoordinatesFormat _coordinatesFormat;
+	qreal _mapOpacity;
+	Projection _projection;
 
-	qreal _opacity;
-	QColor _backgroundColor;
-	bool _showMap;
-	bool _showTracks;
-	bool _showRoutes;
-	bool _showWaypoints;
-	bool _showWaypointLabels;
-	bool _showPOI;
-	bool _showPOILabels;
+	bool _showMap, _showTracks, _showRoutes, _showAreas, _showWaypoints,
+	  _showWaypointLabels, _showPOI, _showPOILabels, _showRouteWaypoints,
+	  _showMarkers, _showPathTicks;
 	bool _overlapPOIs;
-	bool _showRouteWaypoints;
-	int _trackWidth;
-	int _routeWidth;
-	Qt::PenStyle _trackStyle;
-	Qt::PenStyle _routeStyle;
-	int _waypointSize;
-	int _poiSize;
-	QColor _waypointColor;
-	QColor _poiColor;
-	QColor _markerColor;
+	int _trackWidth, _routeWidth, _areaWidth;
+	Qt::PenStyle _trackStyle, _routeStyle, _areaStyle;
+	int _waypointSize, _poiSize;
+	QColor _backgroundColor, _waypointColor, _poiColor, _markerColor;
+	qreal _areaOpacity;
 
 	int _digitalZoom;
 	bool _plot;

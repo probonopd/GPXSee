@@ -11,14 +11,14 @@ class IGCParser : public Parser
 public:
 	IGCParser() : _errorLine(0) {}
 
-	bool parse(QFile *file, QList<TrackData> &tracks,
-	  QList<RouteData> &routes, QList<Waypoint> &waypoints);
+	bool parse(QFile *file, QList<TrackData> &tracks, QList<RouteData> &routes,
+	  QList<Area> &polygons, QVector<Waypoint> &waypoints);
 	QString errorString() const {return _errorString;}
 	int errorLine() const {return _errorLine;}
 
 private:
 	bool readHRecord(const char *line, int len);
-	bool readBRecord(TrackData &track, const char *line, int len);
+	bool readBRecord(SegmentData &segment, const char *line, int len);
 	bool readCRecord(RouteData &route, const char *line, int len);
 
 	int _errorLine;

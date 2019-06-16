@@ -1,12 +1,17 @@
+#include "dem.h"
 #include "route.h"
+
+
+bool Route::_useDEM = false;
 
 Route::Route(const RouteData &data) : _data(data)
 {
 	qreal dist = 0;
 
-	_distance.append(dist);
-	for (int i = 1; i < data.count(); i++) {
-		dist += data.at(i).coordinates().distanceTo(data.at(i-1).coordinates());
+	_distance.append(0);
+
+	for (int i = 1; i < _data.count(); i++) {
+		dist += _data.at(i).coordinates().distanceTo(_data.at(i-1).coordinates());
 		_distance.append(dist);
 	}
 }
@@ -14,9 +19,11 @@ Route::Route(const RouteData &data) : _data(data)
 Path Route::path() const
 {
 	Path ret;
+	ret.append(PathSegment());
+	PathSegment &ps = ret.last();
 
 	for (int i = 0; i < _data.size(); i++)
-		ret.append(PathPoint(_data.at(i).coordinates(), _distance.at(i)));
+		ps.append(PathPoint(_data.at(i).coordinates(), _distance.at(i)));
 
 	return ret;
 }
@@ -24,11 +31,22 @@ Path Route::path() const
 Graph Route::elevation() const
 {
 	Graph graph;
+	graph.append(GraphSegment());
+	GraphSegment &gs = graph.last();
 
-	for (int i = 0; i < _data.size(); i++)
-		if (_data.at(i).hasElevation())
-			graph.append(GraphPoint(_distance.at(i), NAN,
+	for (int i = 0; i < _data.size(); i++) {
+		if (_data.at(i).hasElevation() && !_useDEM)
+			gs.append(GraphPoint(_distance.at(i), NAN,
 			  _data.at(i).elevation()));
+		else {
+			qreal elevation = DEM::elevation(_data.at(i).coordinates());
+			if (!std::isnan(elevation))
+				gs.append(GraphPoint(_distance.at(i), NAN, elevation));
+			else if (_data.at(i).hasElevation())
+				gs.append(GraphPoint(_distance.at(i), NAN,
+				  _data.at(i).elevation()));
+		}
+	}
 
 	return graph;
 }

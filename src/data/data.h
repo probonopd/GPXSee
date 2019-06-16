@@ -1,10 +1,8 @@
 #ifndef DATA_H
 #define DATA_H
 
-#include <QVector>
 #include <QList>
 #include <QHash>
-#include <QPointF>
 #include <QString>
 #include <QStringList>
 #include "waypoint.h"
@@ -13,39 +11,40 @@
 #include "parser.h"
 
 
-class Data : public QObject
+class Data
 {
-	Q_OBJECT
-
 public:
-	Data(QObject *parent = 0) : QObject(parent), _errorLine(0) {}
-	~Data();
+	Data(const QString &fileName, bool poi = false);
 
-	bool loadFile(const QString &fileName);
+	bool isValid() const {return _valid;}
 	const QString &errorString() const {return _errorString;}
 	int errorLine() const {return _errorLine;}
 
-	const QList<Track*> &tracks() const {return _tracks;}
-	const QList<Route*> &routes() const {return _routes;}
-	const QList<Waypoint> &waypoints() const {return _waypoints;}
+	const QList<Track> &tracks() const {return _tracks;}
+	const QList<Route> &routes() const {return _routes;}
+	const QVector<Waypoint> &waypoints() const {return _waypoints;}
+	const QList<Area> &areas() const {return _polygons;}
 
 	static QString formats();
 	static QStringList filter();
 
-private:
-	void processData();
+	static void useDEM(bool use);
 
+private:
+	void processData(const QList<TrackData> &trackData,
+	  const QList<RouteData> &routeData);
+
+	bool _valid;
 	QString _errorString;
 	int _errorLine;
 
-	QList<Track*> _tracks;
-	QList<Route*> _routes;
-	QList<Waypoint> _waypoints;
-
-	QList<TrackData> _trackData;
-	QList<RouteData> _routeData;
+	QList<Track> _tracks;
+	QList<Route> _routes;
+	QList<Area> _polygons;
+	QVector<Waypoint> _waypoints;
 
 	static QHash<QString, Parser*> _parsers;
+	static bool _useDEM;
 };
 
 #endif // DATA_H

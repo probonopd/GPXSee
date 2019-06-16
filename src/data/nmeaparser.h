@@ -10,8 +10,8 @@ class NMEAParser : public Parser
 public:
 	NMEAParser() : _errorLine(0), _GGA(false) {}
 
-	bool parse(QFile *file, QList<TrackData> &tracks,
-	  QList<RouteData> &routes, QList<Waypoint> &waypoints);
+	bool parse(QFile *file, QList<TrackData> &tracks, QList<RouteData> &routes,
+	  QList<Area> &polygons, QVector<Waypoint> &waypoints);
 	QString errorString() const {return _errorString;}
 	int errorLine() const {return _errorLine;}
 
@@ -25,9 +25,9 @@ private:
 	bool readAltitude(const char *data, int len, qreal &ele);
 	bool readGeoidHeight(const char *data, int len, qreal &gh);
 
-	bool readRMC(TrackData &track, const char *line, int len);
-	bool readGGA(TrackData &track, const char *line, int len);
-	bool readWPL(QList<Waypoint> &waypoints, const char *line, int len);
+	bool readRMC(SegmentData &segment, const char *line, int len);
+	bool readGGA(SegmentData &segment, const char *line, int len);
+	bool readWPL(QVector<Waypoint> &waypoints, const char *line, int len);
 	bool readZDA(const char *line, int len);
 
 	int _errorLine;

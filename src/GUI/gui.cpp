@@ -88,6 +88,7 @@ GUI::GUI()
 	_trackCount = 0;
 	_routeCount = 0;
 	_waypointCount = 0;
+	_areaCount = 0;
 	_trackDistance = 0;
 	_routeDistance = 0;
 	_time = 0;
@@ -102,7 +103,6 @@ GUI::GUI()
 	readSettings();
 
 	updateGraphTabs();
-	updateMapView();
 	updateStatusBarInfo();
 }
 
@@ -312,6 +312,11 @@ void GUI::createActions()
 		_showMapAction->setEnabled(false);
 		_clearMapCacheAction->setEnabled(false);
 	}
+	_showCoordinatesAction = new QAction(tr("Show cursor coordinates"), this);
+	_showCoordinatesAction->setMenuRole(QAction::NoRole);
+	_showCoordinatesAction->setCheckable(true);
+	connect(_showCoordinatesAction, SIGNAL(triggered(bool)), _mapView,
+	  SLOT(showCoordinates(bool)));
 
 	// Data actions
 	_showTracksAction = new QAction(tr("Show tracks"), this);
@@ -329,6 +334,11 @@ void GUI::createActions()
 	_showWaypointsAction->setCheckable(true);
 	connect(_showWaypointsAction, SIGNAL(triggered(bool)), _mapView,
 	  SLOT(showWaypoints(bool)));
+	_showAreasAction = new QAction(tr("Show areas"), this);
+	_showAreasAction->setMenuRole(QAction::NoRole);
+	_showAreasAction->setCheckable(true);
+	connect(_showAreasAction, SIGNAL(triggered(bool)), _mapView,
+	  SLOT(showAreas(bool)));
 	_showWaypointLabelsAction = new QAction(tr("Waypoint labels"), this);
 	_showWaypointLabelsAction->setMenuRole(QAction::NoRole);
 	_showWaypointLabelsAction->setCheckable(true);
@@ -339,6 +349,11 @@ void GUI::createActions()
 	_showRouteWaypointsAction->setCheckable(true);
 	connect(_showRouteWaypointsAction, SIGNAL(triggered(bool)), _mapView,
 	  SLOT(showRouteWaypoints(bool)));
+	_showTicksAction = new QAction(tr("km/mi markers"), this);
+	_showTicksAction->setMenuRole(QAction::NoRole);
+	_showTicksAction->setCheckable(true);
+	connect(_showTicksAction, SIGNAL(triggered(bool)), _mapView,
+	  SLOT(showTicks(bool)));
 
 	// Graph actions
 	_showGraphsAction = new QAction(QIcon(SHOW_GRAPHS_ICON), tr("Show graphs"),
@@ -375,6 +390,11 @@ void GUI::createActions()
 	_showGraphSliderInfoAction->setCheckable(true);
 	connect(_showGraphSliderInfoAction, SIGNAL(triggered(bool)), this,
 	  SLOT(showGraphSliderInfo(bool)));
+	_showMarkersAction = new QAction(tr("Show path markers"), this);
+	_showMarkersAction->setMenuRole(QAction::NoRole);
+	_showMarkersAction->setCheckable(true);
+	connect(_showMarkersAction, SIGNAL(triggered(bool)), _mapView,
+	  SLOT(showMarkers(bool)));
 
 	// Settings actions
 	_showToolbarsAction = new QAction(tr("Show toolbars"), this);
@@ -491,6 +511,8 @@ void GUI::createMenus()
 	_mapMenu->addAction(_loadMapAction);
 	_mapMenu->addAction(_clearMapCacheAction);
 	_mapMenu->addSeparator();
+	_mapMenu->addAction(_showCoordinatesAction);
+	_mapMenu->addSeparator();
 	_mapMenu->addAction(_showMapAction);
 
 	QMenu *graphMenu = menuBar()->addMenu(tr("&Graph"));
@@ -499,6 +521,7 @@ void GUI::createMenus()
 	graphMenu->addSeparator();
 	graphMenu->addAction(_showGraphGridAction);
 	graphMenu->addAction(_showGraphSliderInfoAction);
+	graphMenu->addAction(_showMarkersAction);
 	graphMenu->addSeparator();
 	graphMenu->addAction(_showGraphsAction);
 
@@ -518,9 +541,11 @@ void GUI::createMenus()
 	QMenu *displayMenu = dataMenu->addMenu(tr("Display"));
 	displayMenu->addAction(_showWaypointLabelsAction);
 	displayMenu->addAction(_showRouteWaypointsAction);
+	displayMenu->addAction(_showTicksAction);
 	dataMenu->addSeparator();
 	dataMenu->addAction(_showTracksAction);
 	dataMenu->addAction(_showRoutesAction);
+	dataMenu->addAction(_showAreasAction);
 	dataMenu->addAction(_showWaypointsAction);
 
 	QMenu *settingsMenu = menuBar()->addMenu(tr("&Settings"));
@@ -558,6 +583,7 @@ void GUI::createToolBars()
 #endif // Q_OS_MAC
 
 	_fileToolBar = addToolBar(tr("File"));
+	_fileToolBar->setObjectName("File");
 	_fileToolBar->setIconSize(iconSize);
 	_fileToolBar->addAction(_openFileAction);
 	_fileToolBar->addAction(_reloadFileAction);
@@ -565,12 +591,14 @@ void GUI::createToolBars()
 	_fileToolBar->addAction(_printFileAction);
 
 	_showToolBar = addToolBar(tr("Show"));
+	_showToolBar->setObjectName("Show");
 	_showToolBar->setIconSize(iconSize);
 	_showToolBar->addAction(_showPOIAction);
 	_showToolBar->addAction(_showMapAction);
 	_showToolBar->addAction(_showGraphsAction);
 
 	_navigationToolBar = addToolBar(tr("Navigation"));
+	_navigationToolBar->setObjectName("Navigation");
 	_navigationToolBar->setIconSize(iconSize);
 	_navigationToolBar->addAction(_firstAction);
 	_navigationToolBar->addAction(_prevAction);
@@ -700,6 +728,10 @@ void GUI::paths()
 	  + QDir::cleanPath(ProgramPaths::poiDir(true)) + "</code></td></tr><tr><td>"
 	  + tr("GCS/PCS directory:") + "</td><td><code>"
 	  + QDir::cleanPath(ProgramPaths::csvDir(true)) + "</code></td></tr><tr><td>"
+	  + tr("DEM directory:") + "</td><td><code>"
+	  + QDir::cleanPath(ProgramPaths::demDir(true)) + "</code></td></tr><tr><td>"
+	  + tr("Styles directory:") + "</td><td><code>"
+	  + QDir::cleanPath(ProgramPaths::styleDir(true)) + "</code></td></tr><tr><td>"
 	  + tr("Tile cache directory:") + "</td><td><code>"
 	  + QDir::cleanPath(ProgramPaths::tilesDir()) + "</code></td></tr></table>"
 	);
@@ -745,16 +777,17 @@ bool GUI::openFile(const QString &fileName)
 
 bool GUI::loadFile(const QString &fileName)
 {
-	Data data;
+	Data data(fileName);
 	QList<QList<GraphItem*> > graphs;
 	QList<PathItem*> paths;
 
-	if (data.loadFile(fileName)) {
+	if (data.isValid()) {
 		for (int i = 0; i < data.tracks().count(); i++) {
-			_trackDistance += data.tracks().at(i)->distance();
-			_time += data.tracks().at(i)->time();
-			_movingTime += data.tracks().at(i)->movingTime();
-			const QDate &date = data.tracks().at(i)->date().date();
+			const Track &track = data.tracks().at(i);
+			_trackDistance += track.distance();
+			_time += track.time();
+			_movingTime += track.movingTime();
+			const QDate &date = track.date().date();
 			if (_dateRange.first.isNull() || _dateRange.first > date)
 				_dateRange.first = date;
 			if (_dateRange.second.isNull() || _dateRange.second < date)
@@ -763,22 +796,23 @@ bool GUI::loadFile(const QString &fileName)
 		_trackCount += data.tracks().count();
 
 		for (int i = 0; i < data.routes().count(); i++)
-			_routeDistance += data.routes().at(i)->distance();
+			_routeDistance += data.routes().at(i).distance();
 		_routeCount += data.routes().count();
 
 		_waypointCount += data.waypoints().count();
+		_areaCount += data.areas().count();
 
 		if (_pathName.isNull()) {
 			if (data.tracks().count() == 1 && !data.routes().count())
-				_pathName = data.tracks().first()->name();
+				_pathName = data.tracks().first().name();
 			else if (data.routes().count() == 1 && !data.tracks().count())
-				_pathName = data.routes().first()->name();
+				_pathName = data.routes().first().name();
 		} else
 			_pathName = QString();
 
 		for (int i = 0; i < _tabs.count(); i++)
 			graphs.append(_tabs.at(i)->loadData(data));
-		if (updateGraphTabs() | updateMapView())
+		if (updateGraphTabs())
 			_splitter->refresh();
 		paths = _mapView->loadData(data);
 
@@ -801,7 +835,6 @@ bool GUI::loadFile(const QString &fileName)
 		updateStatusBarInfo();
 		updateWindowTitle();
 		updateGraphTabs();
-		updateMapView();
 
 		QString error = tr("Error loading data file:") + "\n\n"
 		  + fileName + "\n\n" + data.errorString();
@@ -873,6 +906,11 @@ void GUI::openOptions()
 		Track::action(options.option); \
 		reload = true; \
 	}
+#define SET_DATA_OPTION(option, action) \
+	if (options.option != _options.option) { \
+		Data::action(options.option); \
+		reload = true; \
+	}
 
 	Options options(_options);
 	bool reload = false;
@@ -886,8 +924,11 @@ void GUI::openOptions()
 	SET_VIEW_OPTION(backgroundColor, setBackgroundColor);
 	SET_VIEW_OPTION(trackWidth, setTrackWidth);
 	SET_VIEW_OPTION(routeWidth, setRouteWidth);
+	SET_VIEW_OPTION(areaWidth, setAreaWidth);
 	SET_VIEW_OPTION(trackStyle, setTrackStyle);
 	SET_VIEW_OPTION(routeStyle, setRouteStyle);
+	SET_VIEW_OPTION(areaStyle, setAreaStyle);
+	SET_VIEW_OPTION(areaOpacity, setAreaOpacity);
 	SET_VIEW_OPTION(waypointSize, setWaypointSize);
 	SET_VIEW_OPTION(waypointColor, setWaypointColor);
 	SET_VIEW_OPTION(poiSize, setPOISize);
@@ -895,6 +936,7 @@ void GUI::openOptions()
 	SET_VIEW_OPTION(pathAntiAliasing, useAntiAliasing);
 	SET_VIEW_OPTION(useOpenGL, useOpenGL);
 	SET_VIEW_OPTION(sliderColor, setMarkerColor);
+	SET_VIEW_OPTION(projection, setProjection);
 
 	SET_TAB_OPTION(palette, setPalette);
 	SET_TAB_OPTION(graphWidth, setGraphWidth);
@@ -912,16 +954,23 @@ void GUI::openOptions()
 	SET_TRACK_OPTION(pauseInterval, setPauseInterval);
 	SET_TRACK_OPTION(useReportedSpeed, useReportedSpeed);
 
+	SET_DATA_OPTION(dataUseDEM, useDEM);
+
 	if (options.poiRadius != _options.poiRadius)
 		_poi->setRadius(options.poiRadius);
+	if (options.poiUseDEM != _options.poiUseDEM)
+		_poi->useDEM(options.poiUseDEM);
+
 	if (options.pixmapCache != _options.pixmapCache)
 		QPixmapCache::setCacheLimit(options.pixmapCache * 1024);
+
 	if (options.connectionTimeout != _options.connectionTimeout)
 		Downloader::setTimeout(options.connectionTimeout);
 #ifdef ENABLE_HTTP2
 	if (options.enableHTTP2 != _options.enableHTTP2)
 		Downloader::enableHTTP2(options.enableHTTP2);
 #endif // ENABLE_HTTP2
+
 #ifdef ENABLE_HIDPI
 	if (options.hidpiMap != _options.hidpiMap)
 		_mapView->setDevicePixelRatio(devicePixelRatioF(),
@@ -932,8 +981,6 @@ void GUI::openOptions()
 		reloadFile();
 
 	_options = options;
-
-	updateMapView();
 }
 
 void GUI::printFile()
@@ -986,6 +1033,9 @@ void GUI::statistics()
 	if (_showWaypointsAction->isChecked() && _waypointCount > 1)
 		text.append("<tr><td>" + tr("Waypoints") + ":</td><td>"
 		  + l.toString(_waypointCount) + "</td></tr>");
+	if (_showAreasAction->isChecked() && _areaCount > 1)
+		text.append("<tr><td>" + tr("Areas") + ":</td><td>"
+		  + l.toString(_areaCount) + "</td></tr>");
 
 	if (_dateRange.first.isValid()) {
 		if (_dateRange.first == _dateRange.second) {
@@ -1051,6 +1101,8 @@ void GUI::plot(QPrinter *printer)
 			info.insert(tr("Routes"), l.toString(_routeCount));
 		if (_showWaypointsAction->isChecked() && _waypointCount > 1)
 			info.insert(tr("Waypoints"), l.toString(_waypointCount));
+		if (_showAreasAction->isChecked() && _areaCount > 1)
+			info.insert(tr("Areas"), l.toString(_areaCount));
 	}
 
 	if (_dateRange.first.isValid() && _options.printDate) {
@@ -1124,6 +1176,7 @@ void GUI::reloadFile()
 	_trackCount = 0;
 	_routeCount = 0;
 	_waypointCount = 0;
+	_areaCount = 0;
 	_trackDistance = 0;
 	_routeDistance = 0;
 	_time = 0;
@@ -1157,6 +1210,7 @@ void GUI::closeFiles()
 	_trackCount = 0;
 	_routeCount = 0;
 	_waypointCount = 0;
+	_areaCount = 0;
 	_trackDistance = 0;
 	_routeDistance = 0;
 	_time = 0;
@@ -1181,7 +1235,6 @@ void GUI::closeAll()
 	updateStatusBarInfo();
 	updateWindowTitle();
 	updateGraphTabs();
-	updateMapView();
 }
 
 void GUI::showGraphs(bool show)
@@ -1192,13 +1245,11 @@ void GUI::showGraphs(bool show)
 void GUI::showToolbars(bool show)
 {
 	if (show) {
-		addToolBar(_fileToolBar);
-		addToolBar(_showToolBar);
-		addToolBar(_navigationToolBar);
-		_fileToolBar->show();
-		_showToolBar->show();
-		_navigationToolBar->show();
+		Q_ASSERT(!_windowStates.isEmpty());
+		restoreState(_windowStates.last());
+		_windowStates.pop_back();
 	} else {
+		_windowStates.append(saveState());
 		removeToolBar(_fileToolBar);
 		removeToolBar(_showToolBar);
 		removeToolBar(_navigationToolBar);
@@ -1209,26 +1260,16 @@ void GUI::showFullscreen(bool show)
 {
 	if (show) {
 		_frameStyle = _mapView->frameStyle();
-		_showGraphs = _showGraphsAction->isChecked();
-
 		statusBar()->hide();
 		menuBar()->hide();
 		showToolbars(false);
-		showGraphs(false);
-		_showGraphsAction->setChecked(false);
 		_mapView->setFrameStyle(QFrame::NoFrame);
-
 		showFullScreen();
 	} else {
 		statusBar()->show();
 		menuBar()->show();
-		if (_showToolbarsAction->isChecked())
-			showToolbars(true);
-		_showGraphsAction->setChecked(_showGraphs);
-		if (_showGraphsAction->isEnabled())
-			showGraphs(_showGraphs);
+		showToolbars(true);
 		_mapView->setFrameStyle(_frameStyle);
-
 		showNormal();
 	}
 }
@@ -1436,18 +1477,6 @@ bool GUI::updateGraphTabs()
 	return (hidden != _graphTabWidget->isHidden());
 }
 
-bool GUI::updateMapView()
-{
-	bool hidden = _mapView->isHidden();
-
-	if (_options.alwaysShowMap)
-		_mapView->setHidden(false);
-	else
-		_mapView->setHidden(!(_trackCount + _routeCount + _waypointCount));
-
-	return (hidden != _mapView->isHidden());
-}
-
 void GUI::setTimeType(TimeType type)
 {
 	for (int i = 0; i <_tabs.count(); i++)
@@ -1598,6 +1627,8 @@ void GUI::dropEvent(QDropEvent *event)
 	QList<QUrl> urls = event->mimeData()->urls();
 	for (int i = 0; i < urls.size(); i++)
 		openFile(urls.at(i).toLocalFile());
+
+	event->acceptProposedAction();
 }
 
 void GUI::writeSettings()
@@ -1610,6 +1641,10 @@ void GUI::writeSettings()
 		settings.setValue(WINDOW_SIZE_SETTING, size());
 	if (pos() != WINDOW_POS_DEFAULT)
 		settings.setValue(WINDOW_POS_SETTING, pos());
+	if (_windowStates.isEmpty())
+		settings.setValue(WINDOW_STATE_SETTING, saveState());
+	else
+		settings.setValue(WINDOW_STATE_SETTING, _windowStates.first());
 	settings.endGroup();
 
 	settings.beginGroup(SETTINGS_SETTINGS_GROUP);
@@ -1634,6 +1669,9 @@ void GUI::writeSettings()
 	settings.setValue(CURRENT_MAP_SETTING, _map->name());
 	if (_showMapAction->isChecked() != SHOW_MAP_DEFAULT)
 		settings.setValue(SHOW_MAP_SETTING, _showMapAction->isChecked());
+	if (_showCoordinatesAction->isChecked() != SHOW_COORDINATES_DEFAULT)
+		settings.setValue(SHOW_COORDINATES_SETTING,
+		  _showCoordinatesAction->isChecked());
 	settings.endGroup();
 
 	settings.beginGroup(GRAPH_SETTINGS_GROUP);
@@ -1649,6 +1687,9 @@ void GUI::writeSettings()
 	  != SHOW_GRAPH_SLIDER_INFO_DEFAULT)
 		settings.setValue(SHOW_GRAPH_SLIDER_INFO_SETTING,
 		  _showGraphSliderInfoAction->isChecked());
+	if (_showMarkersAction->isChecked() != SHOW_MARKERS_DEFAULT)
+		settings.setValue(SHOW_MARKERS_SETTING,
+		  _showMarkersAction->isChecked());
 	settings.endGroup();
 
 	settings.beginGroup(POI_SETTINGS_GROUP);
@@ -1678,12 +1719,17 @@ void GUI::writeSettings()
 	if (_showWaypointsAction->isChecked() != SHOW_WAYPOINTS_DEFAULT)
 		settings.setValue(SHOW_WAYPOINTS_SETTING,
 		  _showWaypointsAction->isChecked());
+	if (_showAreasAction->isChecked() != SHOW_AREAS_DEFAULT)
+		settings.setValue(SHOW_AREAS_SETTING, _showAreasAction->isChecked());
 	if (_showWaypointLabelsAction->isChecked() != SHOW_WAYPOINT_LABELS_DEFAULT)
 		settings.setValue(SHOW_WAYPOINT_LABELS_SETTING,
 		  _showWaypointLabelsAction->isChecked());
 	if (_showRouteWaypointsAction->isChecked() != SHOW_ROUTE_WAYPOINTS_DEFAULT)
 		settings.setValue(SHOW_ROUTE_WAYPOINTS_SETTING,
 		  _showRouteWaypointsAction->isChecked());
+	if (_showTicksAction->isChecked() != SHOW_TICKS_DEFAULT)
+		settings.setValue(SHOW_TICKS_SETTING,
+		  _showTicksAction->isChecked());
 	settings.endGroup();
 
 	settings.beginGroup(EXPORT_SETTINGS_GROUP);
@@ -1718,10 +1764,16 @@ void GUI::writeSettings()
 		settings.setValue(TRACK_WIDTH_SETTING, _options.trackWidth);
 	if (_options.routeWidth != ROUTE_WIDTH_DEFAULT)
 		settings.setValue(ROUTE_WIDTH_SETTING, _options.routeWidth);
+	if (_options.areaWidth != AREA_WIDTH_DEFAULT)
+		settings.setValue(AREA_WIDTH_SETTING, _options.areaWidth);
 	if (_options.trackStyle != TRACK_STYLE_DEFAULT)
 		settings.setValue(TRACK_STYLE_SETTING, (int)_options.trackStyle);
 	if (_options.routeStyle != ROUTE_STYLE_DEFAULT)
 		settings.setValue(ROUTE_STYLE_SETTING, (int)_options.routeStyle);
+	if (_options.areaStyle != AREA_STYLE_DEFAULT)
+		settings.setValue(AREA_STYLE_SETTING, (int)_options.areaStyle);
+	if (_options.areaOpacity != AREA_OPACITY_DEFAULT)
+		settings.setValue(AREA_OPACITY_SETTING, (int)_options.areaOpacity);
 	if (_options.waypointSize != WAYPOINT_SIZE_DEFAULT)
 		settings.setValue(WAYPOINT_SIZE_SETTING, _options.waypointSize);
 	if (_options.waypointColor != WAYPOINT_COLOR_DEFAULT)
@@ -1754,8 +1806,12 @@ void GUI::writeSettings()
 		settings.setValue(PAUSE_INTERVAL_SETTING, _options.pauseInterval);
 	if (_options.useReportedSpeed != USE_REPORTED_SPEED_DEFAULT)
 		settings.setValue(USE_REPORTED_SPEED_SETTING, _options.useReportedSpeed);
+	if (_options.dataUseDEM != DATA_USE_DEM_DEFAULT)
+		settings.setValue(DATA_USE_DEM_SETTING, _options.dataUseDEM);
 	if (_options.poiRadius != POI_RADIUS_DEFAULT)
 		settings.setValue(POI_RADIUS_SETTING, _options.poiRadius);
+	if (_options.poiUseDEM != POI_USE_DEM_DEFAULT)
+		settings.setValue(POI_USE_DEM_SETTING, _options.poiUseDEM);
 	if (_options.useOpenGL != USE_OPENGL_DEFAULT)
 		settings.setValue(USE_OPENGL_SETTING, _options.useOpenGL);
 #ifdef ENABLE_HTTP2
@@ -1785,8 +1841,8 @@ void GUI::writeSettings()
 		  _options.separateGraphPage);
 	if (_options.sliderColor != SLIDER_COLOR_DEFAULT)
 		settings.setValue(SLIDER_COLOR_SETTING, _options.sliderColor);
-	if (_options.alwaysShowMap != ALWAYS_SHOW_MAP_DEFAULT)
-		settings.setValue(ALWAYS_SHOW_MAP_SETTING, _options.alwaysShowMap);
+	if (_options.projection != PROJECTION_DEFAULT)
+		settings.setValue(PROJECTION_SETTING, _options.projection);
 #ifdef ENABLE_HIDPI
 	if (_options.hidpiMap != HIDPI_MAP_DEFAULT)
 		settings.setValue(HIDPI_MAP_SETTING, _options.hidpiMap);
@@ -1802,6 +1858,7 @@ void GUI::readSettings()
 	settings.beginGroup(WINDOW_SETTINGS_GROUP);
 	resize(settings.value(WINDOW_SIZE_SETTING, WINDOW_SIZE_DEFAULT).toSize());
 	move(settings.value(WINDOW_POS_SETTING, WINDOW_POS_DEFAULT).toPoint());
+	restoreState(settings.value(WINDOW_STATE_SETTING).toByteArray());
 	settings.endGroup();
 
 	settings.beginGroup(SETTINGS_SETTINGS_GROUP);
@@ -1842,6 +1899,11 @@ void GUI::readSettings()
 		int index = mapIndex(settings.value(CURRENT_MAP_SETTING).toString());
 		_mapActions.at(index)->trigger();
 	}
+	if (settings.value(SHOW_COORDINATES_SETTING, SHOW_COORDINATES_DEFAULT)
+	  .toBool()) {
+		_showCoordinatesAction->setChecked(true);
+		_mapView->showCoordinates(true);
+	}
 	settings.endGroup();
 
 	settings.beginGroup(GRAPH_SETTINGS_GROUP);
@@ -1865,6 +1927,10 @@ void GUI::readSettings()
 		showGraphSliderInfo(false);
 	else
 		_showGraphSliderInfoAction->setChecked(true);
+	if (!settings.value(SHOW_MARKERS_SETTING, SHOW_MARKERS_DEFAULT).toBool())
+		_mapView->showMarkers(false);
+	else
+		_showMarkersAction->setChecked(true);
 	settings.endGroup();
 
 	settings.beginGroup(POI_SETTINGS_GROUP);
@@ -1913,6 +1979,10 @@ void GUI::readSettings()
 		_mapView->showWaypoints(false);
 	else
 		_showWaypointsAction->setChecked(true);
+	if (!settings.value(SHOW_AREAS_SETTING, SHOW_AREAS_DEFAULT).toBool())
+		_mapView->showAreas(false);
+	else
+		_showAreasAction->setChecked(true);
 	if (!settings.value(SHOW_WAYPOINT_LABELS_SETTING,
 	  SHOW_WAYPOINT_LABELS_DEFAULT).toBool())
 		_mapView->showWaypointLabels(false);
@@ -1923,6 +1993,10 @@ void GUI::readSettings()
 		_mapView->showRouteWaypoints(false);
 	else
 		_showRouteWaypointsAction->setChecked(true);
+	if (settings.value(SHOW_TICKS_SETTING, SHOW_TICKS_DEFAULT).toBool()) {
+		_mapView->showTicks(true);
+		_showTicksAction->setChecked(true);
+	}
 	settings.endGroup();
 
 	settings.beginGroup(EXPORT_SETTINGS_GROUP);
@@ -1958,10 +2032,16 @@ void GUI::readSettings()
 	  TRACK_WIDTH_DEFAULT).toInt();
 	_options.routeWidth = settings.value(ROUTE_WIDTH_SETTING,
 	  ROUTE_WIDTH_DEFAULT).toInt();
+	_options.areaWidth = settings.value(AREA_WIDTH_SETTING,
+	  AREA_WIDTH_DEFAULT).toInt();
 	_options.trackStyle = (Qt::PenStyle) settings.value(TRACK_STYLE_SETTING,
 	  (int)TRACK_STYLE_DEFAULT).toInt();
 	_options.routeStyle = (Qt::PenStyle) settings.value(ROUTE_STYLE_SETTING,
 	  (int)ROUTE_STYLE_DEFAULT).toInt();
+	_options.areaStyle = (Qt::PenStyle) settings.value(AREA_STYLE_SETTING,
+	  (int)AREA_STYLE_DEFAULT).toInt();
+	_options.areaOpacity = settings.value(AREA_OPACITY_SETTING,
+	  AREA_OPACITY_DEFAULT).toInt();
 	_options.pathAntiAliasing = settings.value(PATH_AA_SETTING, PATH_AA_DEFAULT)
 	  .toBool();
 	_options.waypointSize = settings.value(WAYPOINT_SIZE_SETTING,
@@ -1992,10 +2072,14 @@ void GUI::readSettings()
 	  PAUSE_SPEED_DEFAULT).toFloat();
 	_options.useReportedSpeed = settings.value(USE_REPORTED_SPEED_SETTING,
 	  USE_REPORTED_SPEED_DEFAULT).toBool();
+	_options.dataUseDEM = settings.value(DATA_USE_DEM_SETTING,
+	  DATA_USE_DEM_DEFAULT).toBool();
 	_options.pauseInterval = settings.value(PAUSE_INTERVAL_SETTING,
 	  PAUSE_INTERVAL_DEFAULT).toInt();
 	_options.poiRadius = settings.value(POI_RADIUS_SETTING, POI_RADIUS_DEFAULT)
 	  .toInt();
+	_options.poiUseDEM = settings.value(POI_USE_DEM_SETTING,
+	  POI_USE_DEM_DEFAULT).toBool();
 	_options.useOpenGL = settings.value(USE_OPENGL_SETTING, USE_OPENGL_DEFAULT)
 	  .toBool();
 #ifdef ENABLE_HTTP2
@@ -2024,8 +2108,8 @@ void GUI::readSettings()
 	  SEPARATE_GRAPH_PAGE_DEFAULT).toBool();
 	_options.sliderColor = settings.value(SLIDER_COLOR_SETTING,
 	  SLIDER_COLOR_DEFAULT).value<QColor>();
-	_options.alwaysShowMap = settings.value(ALWAYS_SHOW_MAP_SETTING,
-	  ALWAYS_SHOW_MAP_DEFAULT).toBool();
+	_options.projection = settings.value(PROJECTION_SETTING, PROJECTION_DEFAULT)
+	  .toInt();
 #ifdef ENABLE_HIDPI
 	_options.hidpiMap = settings.value(HIDPI_MAP_SETTING, HIDPI_MAP_SETTING)
 	  .toBool();
@@ -2036,8 +2120,11 @@ void GUI::readSettings()
 	_mapView->setBackgroundColor(_options.backgroundColor);
 	_mapView->setTrackWidth(_options.trackWidth);
 	_mapView->setRouteWidth(_options.routeWidth);
+	_mapView->setAreaWidth(_options.areaWidth);
 	_mapView->setTrackStyle(_options.trackStyle);
 	_mapView->setRouteStyle(_options.routeStyle);
+	_mapView->setAreaStyle(_options.areaStyle);
+	_mapView->setAreaOpacity(_options.areaOpacity);
 	_mapView->setWaypointSize(_options.waypointSize);
 	_mapView->setWaypointColor(_options.waypointColor);
 	_mapView->setPOISize(_options.poiSize);
@@ -2050,6 +2137,7 @@ void GUI::readSettings()
 	_mapView->setDevicePixelRatio(devicePixelRatioF(),
 	  _options.hidpiMap ? devicePixelRatioF() : 1.0);
 #endif // ENABLE_HIDPI
+	_mapView->setProjection(_options.projection);
 
 	for (int i = 0; i < _tabs.count(); i++) {
 		_tabs.at(i)->setPalette(_options.palette);
@@ -2070,8 +2158,10 @@ void GUI::readSettings()
 	Track::setPauseSpeed(_options.pauseSpeed);
 	Track::setPauseInterval(_options.pauseInterval);
 	Track::useReportedSpeed(_options.useReportedSpeed);
+	Data::useDEM(_options.dataUseDEM);
 
 	_poi->setRadius(_options.poiRadius);
+	_poi->useDEM(_options.poiUseDEM);
 
 	QPixmapCache::setCacheLimit(_options.pixmapCache * 1024);
 
@@ -2126,6 +2216,8 @@ void GUI::show()
 	connect(w, SIGNAL(screenChanged(QScreen*)), this,
 	  SLOT(screenChanged(QScreen*)));
 #endif // ENABLE_HIDPI
+
+	_mapView->fitContentToSize();
 }
 
 void GUI::screenChanged(QScreen *screen)

@@ -1,6 +1,7 @@
 #ifndef GRAPH_H
 #define GRAPH_H
 
+#include <QList>
 #include <QVector>
 #include <QDebug>
 #include <cmath>
@@ -39,6 +40,30 @@ inline QDebug operator<<(QDebug dbg, const GraphPoint &point)
 }
 #endif // QT_NO_DEBUG
 
-typedef QVector<GraphPoint> Graph;
+typedef QVector<GraphPoint> GraphSegment;
+
+class Graph : public QList<GraphSegment>
+{
+public:
+	bool isValid() const
+	{
+		if (isEmpty())
+			return false;
+		for (int i = 0; i < size(); i++)
+			if (at(i).size() < 2)
+				return false;
+		return true;
+	}
+	bool hasTime() const
+	{
+		for (int i = 0; i < size(); i++) {
+			const GraphSegment &segment = at(i);
+			for (int j = 0; j < segment.size(); j++)
+				if (std::isnan(segment.at(j).t()))
+					return false;
+		}
+		return true;
+	}
+};
 
 #endif // GRAPH_H

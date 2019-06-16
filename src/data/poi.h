@@ -7,8 +7,10 @@
 #include <QStringList>
 #include "common/rtree.h"
 #include "waypoint.h"
-#include "path.h"
 
+class Path;
+class Area;
+class RectC;
 
 class POI : public QObject
 {
@@ -24,9 +26,11 @@ public:
 
 	unsigned radius() const {return _radius;}
 	void setRadius(unsigned radius);
+	void useDEM(bool use);
 
 	QList<Waypoint> points(const Path &path) const;
 	QList<Waypoint> points(const Waypoint &point) const;
+	QList<Waypoint> points(const Area &area) const;
 
 	const QStringList &files() const {return _files;}
 	void enableFile(const QString &fileName, bool enable);
@@ -45,6 +49,7 @@ private:
 
 	bool loadFile(const QString &path, bool dir);
 	void search(const RectC &rect, QSet<int> &set) const;
+	void appendElevation(QList<Waypoint> &points) const;
 
 	POITree _tree;
 	QVector<Waypoint> _data;
@@ -52,6 +57,7 @@ private:
 	QList<FileIndex> _indexes;
 
 	unsigned _radius;
+	bool _useDEM;
 
 	QString _errorString;
 	int _errorLine;

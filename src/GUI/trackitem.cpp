@@ -13,7 +13,8 @@ QString TrackItem::toolTip(Units units) const
 		tt.insert(tr("Name"), _name);
 	if (!_desc.isEmpty())
 		tt.insert(tr("Description"), _desc);
-	tt.insert(tr("Distance"), Format::distance(_path.last().distance(), units));
+	tt.insert(tr("Distance"), Format::distance(path().last().last().distance(),
+	  units));
 	if  (_time > 0)
 		tt.insert(tr("Total time"), Format::timeSpan(_time));
 	if  (_movingTime > 0)
@@ -38,5 +39,6 @@ TrackItem::TrackItem(const Track &track, Map *map, QGraphicsItem *parent)
 
 void TrackItem::setUnits(Units units)
 {
+	PathItem::setUnits(units);
 	setToolTip(toolTip(units));
 }

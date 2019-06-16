@@ -34,16 +34,17 @@ QList<GraphItem*> TemperatureGraph::loadData(const Data &data)
 	QList<GraphItem*> graphs;
 
 	for (int i = 0; i < data.tracks().count(); i++) {
-		const Graph &graph = data.tracks().at(i)->temperature();
+		const Track &track = data.tracks().at(i);
+		const Graph &graph = track.temperature();
 
-		if (graph.size() < 2) {
+		if (!graph.isValid()) {
 			skipColor();
 			graphs.append(0);
 		} else {
 			TemperatureGraphItem *gi = new TemperatureGraphItem(graph,
 			  _graphType);
 			GraphView::addGraph(gi);
-			_avg.append(QPointF(data.tracks().at(i)->distance(), gi->avg()));
+			_avg.append(QPointF(track.distance(), gi->avg()));
 			graphs.append(gi);
 		}
 	}
@@ -52,6 +53,9 @@ QList<GraphItem*> TemperatureGraph::loadData(const Data &data)
 		skipColor();
 		graphs.append(0);
 	}
+
+	for (int i = 0; i < data.areas().count(); i++)
+		skipColor();
 
 	setInfo();
 	redraw();
@@ -62,11 +66,11 @@ QList<GraphItem*> TemperatureGraph::loadData(const Data &data)
 qreal TemperatureGraph::avg() const
 {
 	qreal sum = 0, w = 0;
-	QList<QPointF>::const_iterator it;
 
-	for (it = _avg.begin(); it != _avg.end(); it++) {
-		sum += it->y() * it->x();
-		w += it->x();
+	for (int i = 0; i < _avg.size(); i++) {
+		const QPointF &p = _avg.at(i);
+		sum += p.y() * p.x();
+		w += p.x();
 	}
 
 	return (sum / w);
@@ -76,7 +80,7 @@ void TemperatureGraph::clear()
 {
 	_avg.clear();
 
-	GraphView::clear();
+	GraphTab::clear();
 }
 
 void TemperatureGraph::setYUnits(Units units)

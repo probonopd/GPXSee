@@ -179,7 +179,7 @@ void WMTS::layer(QXmlStreamReader &reader, CTX &ctx)
 			QString s = style(reader);
 			if (isDefault)
 				ctx.defaultStyle = s;
-			if (!s.isEmpty() && s == ctx.setup.style())
+			if (s == ctx.setup.style())
 				ctx.hasStyle = true;
 		} else if (reader.name() == "Format") {
 			if (reader.readElementText() == ctx.setup.format())
@@ -257,7 +257,8 @@ bool WMTS::parseCapabilities(const QString &path, CTX &ctx)
 		_errorString = ctx.setup.style() + ": style not provided";
 		return false;
 	}
-	if (ctx.setup.style().isEmpty() && ctx.defaultStyle.isEmpty()) {
+	if (!ctx.hasStyle && ctx.setup.style().isEmpty()
+	  && ctx.defaultStyle.isEmpty()) {
 		_errorString = "Default style not provided";
 		return false;
 	}
@@ -304,12 +305,12 @@ bool WMTS::downloadCapabilities(const QString &url, const QString &file,
 	if (d.get(dl, authorization))
 		wait.exec();
 
-	if (QFileInfo(file).exists())
-		return true;
-	else {
+	if (!QFileInfo(file).exists()) {
 		_errorString = "Error downloading capabilities XML file";
 		return false;
 	}
+
+	return true;
 }
 
 WMTS::WMTS(const QString &file, const WMTS::Setup &setup) : _valid(false)

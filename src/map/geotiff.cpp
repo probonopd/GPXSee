@@ -1,60 +1,60 @@
+#include <QFile>
+#include "common/tifffile.h"
 #include "pcs.h"
-#include "tifffile.h"
 #include "geotiff.h"
 
 
-#define TIFF_DOUBLE 12
-#define TIFF_SHORT  3
-#define TIFF_LONG   4
+#define ModelPixelScaleTag             33550
+#define ModelTiepointTag               33922
+#define ModelTransformationTag         34264
+#define GeoKeyDirectoryTag             34735
+#define GeoDoubleParamsTag             34736
 
-#define ModelPixelScaleTag            33550
-#define ModelTiepointTag              33922
-#define ModelTransformationTag        34264
-#define GeoKeyDirectoryTag            34735
-#define GeoDoubleParamsTag            34736
+#define GTModelTypeGeoKey              1024
+#define GTRasterTypeGeoKey             1025
+#define GeographicTypeGeoKey           2048
+#define GeogGeodeticDatumGeoKey        2050
+#define GeogPrimeMeridianGeoKey        2051
+#define GeogAngularUnitsGeoKey         2054
+#define GeogEllipsoidGeoKey            2056
+#define GeogAzimuthUnitsGeoKey         2060
+#define ProjectedCSTypeGeoKey          3072
+#define ProjectionGeoKey               3074
+#define ProjCoordTransGeoKey           3075
+#define ProjLinearUnitsGeoKey          3076
+#define ProjStdParallel1GeoKey         3078
+#define ProjStdParallel2GeoKey         3079
+#define ProjNatOriginLongGeoKey        3080
+#define ProjNatOriginLatGeoKey         3081
+#define ProjFalseEastingGeoKey         3082
+#define ProjFalseNorthingGeoKey        3083
+#define ProjFalseOriginLongGeoKey      3084
+#define ProjFalseOriginLatGeoKey       3085
+#define ProjFalseOriginEastingGeoKey   3086
+#define ProjFalseOriginNorthingGeoKey  3087
+#define ProjCenterLongGeoKey           3088
+#define ProjCenterLatGeoKey            3089
+#define ProjCenterEastingGeoKey        3090
+#define ProjCenterNorthingGeoKey       3091
+#define ProjScaleAtNatOriginGeoKey     3092
+#define ProjScaleAtCenterGeoKey        3093
+#define ProjAzimuthAngleGeoKey         3094
+#define ProjStraightVertPoleLongGeoKey 3095
+#define ProjRectifiedGridAngleGeoKey   3096
 
-#define GTModelTypeGeoKey             1024
-#define GTRasterTypeGeoKey            1025
-#define GeographicTypeGeoKey          2048
-#define GeogGeodeticDatumGeoKey       2050
-#define GeogPrimeMeridianGeoKey       2051
-#define GeogAngularUnitsGeoKey        2054
-#define GeogEllipsoidGeoKey           2056
-#define GeogAzimuthUnitsGeoKey        2060
-#define ProjectedCSTypeGeoKey         3072
-#define ProjectionGeoKey              3074
-#define ProjCoordTransGeoKey          3075
-#define ProjLinearUnitsGeoKey         3076
-#define ProjStdParallel1GeoKey        3078
-#define ProjStdParallel2GeoKey        3079
-#define ProjNatOriginLongGeoKey       3080
-#define ProjNatOriginLatGeoKey        3081
-#define ProjFalseEastingGeoKey        3082
-#define ProjFalseNorthingGeoKey       3083
-#define ProjFalseOriginLongGeoKey     3084
-#define ProjFalseOriginLatGeoKey      3085
-#define ProjFalseOriginEastingGeoKey  3086
-#define ProjFalseOriginNorthingGeoKey 3087
-#define ProjCenterLongGeoKey          3088
-#define ProjCenterLatGeoKey           3089
-#define ProjCenterEastingGeoKey       3090
-#define ProjCenterNorthingGeoKey      3091
-#define ProjScaleAtNatOriginGeoKey    3092
-#define ProjScaleAtCenterGeoKey       3093
-#define ProjAzimuthAngleGeoKey        3094
-#define ProjRectifiedGridAngleGeoKey  3096
+#define ModelTypeProjected             1
+#define ModelTypeGeographic            2
+#define ModelTypeGeocentric            3
 
-#define ModelTypeProjected            1
-#define ModelTypeGeographic           2
-#define ModelTypeGeocentric           3
-
-#define CT_TransverseMercator         1
-#define CT_ObliqueMercator            3
-#define CT_Mercator                   7
-#define CT_LambertConfConic_2SP       8
-#define CT_LambertConfConic_1SP       9
-#define CT_LambertAzimEqualArea       10
-#define CT_AlbersEqualArea            11
+#define CT_TransverseMercator          1
+#define CT_ObliqueMercator             3
+#define CT_Mercator                    7
+#define CT_LambertConfConic_2SP        8
+#define CT_LambertConfConic_1SP        9
+#define CT_LambertAzimEqualArea        10
+#define CT_AlbersEqualArea             11
+#define CT_PolarStereographic          15
+#define CT_ObliqueStereographic        16
 
 
 #define IS_SET(map, key) \
@@ -123,7 +123,7 @@ bool GeoTIFF::readEntry(TIFFFile &file, Ctx &ctx) const
 	return true;
 }
 
-bool GeoTIFF::readIFD(TIFFFile &file, quint32 &offset, Ctx &ctx) const
+bool GeoTIFF::readIFD(TIFFFile &file, quint32 offset, Ctx &ctx) const
 {
 	quint16 count;
 
@@ -135,9 +135,6 @@ bool GeoTIFF::readIFD(TIFFFile &file, quint32 &offset, Ctx &ctx) const
 	for (quint16 i = 0; i < count; i++)
 		if (!readEntry(file, ctx))
 			return false;
-
-	if (!file.readValue(offset))
-		return false;
 
 	return true;
 }
@@ -261,6 +258,7 @@ bool GeoTIFF::readKeys(TIFFFile &file, Ctx &ctx, QMap<quint16, Value> &kv) const
 			case ProjCenterNorthingGeoKey:
 			case ProjFalseOriginEastingGeoKey:
 			case ProjFalseOriginNorthingGeoKey:
+			case ProjStraightVertPoleLongGeoKey:
 				if (!readGeoValue(file, ctx.values, entry.ValueOffset,
 				  value.DOUBLE))
 					return false;
@@ -342,6 +340,10 @@ Projection::Method GeoTIFF::method(QMap<quint16, Value> &kv)
 			return Projection::Method(9820);
 		case CT_AlbersEqualArea:
 			return Projection::Method(9822);
+		case CT_PolarStereographic:
+			return Projection::Method(9829);
+		case CT_ObliqueStereographic:
+			return Projection::Method(9809);
 		default:
 			_errorString = QString("%1: unknown coordinate transformation method")
 			  .arg(kv.value(ProjCoordTransGeoKey).SHORT);
@@ -407,6 +409,8 @@ bool GeoTIFF::projectedModel(QMap<quint16, Value> &kv)
 			lon0 = au.toDegrees(kv.value(ProjCenterLongGeoKey).DOUBLE);
 		else if (kv.contains(ProjFalseOriginLongGeoKey))
 			lon0 = au.toDegrees(kv.value(ProjFalseOriginLongGeoKey).DOUBLE);
+		else if (kv.contains(ProjStraightVertPoleLongGeoKey))
+			lon0 = au.toDegrees(kv.value(ProjStraightVertPoleLongGeoKey).DOUBLE);
 		else
 			lon0 = NAN;
 		if (kv.contains(ProjScaleAtNatOriginGeoKey))
@@ -465,27 +469,26 @@ bool GeoTIFF::geographicModel(QMap<quint16, Value> &kv)
 
 GeoTIFF::GeoTIFF(const QString &path)
 {
-	quint32 ifd;
 	QList<ReferencePoint> points;
 	PointD scale;
 	QMap<quint16, Value> kv;
 	Ctx ctx;
-	TIFFFile file;
 
 
-	file.setFileName(path);
+	QFile file(path);
 	if (!file.open(QIODevice::ReadOnly)) {
-		_errorString = QString("Error opening TIFF file: %1")
-		  .arg(file.errorString());
-		return;
-	}
-	if (!file.readHeader(ifd)) {
-		_errorString = "Invalid TIFF header";
+		_errorString = file.errorString();
 		return;
 	}
 
-	while (ifd) {
-		if (!readIFD(file, ifd, ctx)) {
+	TIFFFile tiff(&file);
+	if (!tiff.isValid()) {
+		_errorString = "Not a TIFF file";
+		return;
+	}
+
+	for (quint32 ifd = tiff.ifd(); ifd; ) {
+		if (!readIFD(tiff, ifd, ctx) || !tiff.readValue(ifd)) {
 			_errorString = "Invalid IFD";
 			return;
 		}
@@ -497,19 +500,19 @@ GeoTIFF::GeoTIFF(const QString &path)
 	}
 
 	if (ctx.scale) {
-		if (!readScale(file, ctx.scale, scale)) {
+		if (!readScale(tiff, ctx.scale, scale)) {
 			_errorString = "Error reading model pixel scale";
 			return;
 		}
 	}
 	if (ctx.tiepoints) {
-		if (!readTiepoints(file, ctx.tiepoints, ctx.tiepointCount, points)) {
+		if (!readTiepoints(tiff, ctx.tiepoints, ctx.tiepointCount, points)) {
 			_errorString = "Error reading raster->model tiepoint pairs";
 			return;
 		}
 	}
 
-	if (!readKeys(file, ctx, kv)) {
+	if (!readKeys(tiff, ctx, kv)) {
 		_errorString = "Error reading Geo key/value";
 		return;
 	}
@@ -537,7 +540,7 @@ GeoTIFF::GeoTIFF(const QString &path)
 		_transform = Transform(points);
 	else if (ctx.matrix) {
 		double matrix[16];
-		if (!readMatrix(file, ctx.matrix, matrix)) {
+		if (!readMatrix(tiff, ctx.matrix, matrix)) {
 			_errorString = "Error reading transformation matrix";
 			return;
 		}

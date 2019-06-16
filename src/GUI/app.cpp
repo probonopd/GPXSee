@@ -12,14 +12,14 @@
 #include "map/ellipsoid.h"
 #include "map/gcs.h"
 #include "map/pcs.h"
+#include "data/dem.h"
 #include "opengl.h"
 #include "gui.h"
 #include "settings.h"
 #include "app.h"
 
 
-App::App(int &argc, char **argv) : QApplication(argc, argv),
-  _argc(argc), _argv(argv)
+App::App(int &argc, char **argv) : QApplication(argc, argv)
 {
 #if defined(Q_OS_WIN32) || defined(Q_OS_MAC)
 	setApplicationName(APP_NAME);
@@ -45,15 +45,19 @@ App::App(int &argc, char **argv) : QApplication(argc, argv),
 #ifdef Q_OS_MAC
 	setAttribute(Qt::AA_DontShowIconsInMenus);
 #endif // Q_OS_MAC
-
 	QNetworkProxyFactory::setUseSystemConfiguration(true);
-	QSettings settings(APP_NAME, APP_NAME);
-	settings.beginGroup(OPTIONS_SETTINGS_GROUP);
-
 	/* The QNetworkAccessManager must be a child of QApplication, otherwise it
 	   triggers the following warning on exit (and may probably crash):
 	   "QThreadStorage: Thread X exited after QThreadStorage Y destroyed" */
 	Downloader::setNetworkManager(new QNetworkAccessManager(this));
+	DEM::setDir(ProgramPaths::demDir());
+	OPENGL_SET_FORMAT(4, 8);
+
+	loadDatums();
+	loadPCSs();
+
+	QSettings settings(qApp->applicationName(), qApp->applicationName());
+	settings.beginGroup(OPTIONS_SETTINGS_GROUP);
 #ifdef ENABLE_HTTP2
 	Downloader::enableHTTP2(settings.value(ENABLE_HTTP2_SETTING,
 	  ENABLE_HTTP2_DEFAULT).toBool());
@@ -61,10 +65,6 @@ App::App(int &argc, char **argv) : QApplication(argc, argv),
 	Downloader::setTimeout(settings.value(CONNECTION_TIMEOUT_SETTING,
 	  CONNECTION_TIMEOUT_DEFAULT).toInt());
 	settings.endGroup();
-
-	OPENGL_SET_SAMPLES(4);
-	loadDatums();
-	loadPCSs();
 
 	_gui = new GUI();
 }

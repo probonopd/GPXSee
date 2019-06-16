@@ -7,6 +7,7 @@
 #include "format.h"
 
 class Map;
+class WaypointItem;
 
 class RouteItem : public PathItem
 {
@@ -17,7 +18,7 @@ public:
 
 	void setMap(Map *map);
 
-	void setUnits(Units units);
+	void setUnits(Units u);
 	void setCoordinatesFormat(CoordinatesFormat format);
 	void showWaypoints(bool show);
 	void showWaypointLabels(bool show);
@@ -27,8 +28,9 @@ private:
 
 	QString _name;
 	QString _desc;
-	Units _units;
 	CoordinatesFormat _coordinatesFormat;
+
+	QVector<WaypointItem*> _waypoints;
 };
 
 #endif // ROUTEITEM_H

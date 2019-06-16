@@ -27,16 +27,16 @@ GraphView::GraphView(QWidget *parent)
 	_scene = new QGraphicsScene(this);
 	setScene(_scene);
 
-	setBackgroundBrush(QBrush(Qt::white));
 	setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 	setRenderHint(QPainter::Antialiasing, true);
 	setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	setBackgroundBrush(QBrush(palette().brush(QPalette::Base)));
 
 	_xAxis = new AxisItem(AxisItem::X);
-	_xAxis->setZValue(2.0);
+	_xAxis->setZValue(1.0);
 	_yAxis = new AxisItem(AxisItem::Y);
-	_yAxis->setZValue(2.0);
+	_yAxis->setZValue(1.0);
 	_slider = new SliderItem();
 	_slider->setZValue(3.0);
 	_sliderInfo = new SliderInfoItem(_slider);
@@ -520,4 +520,15 @@ void GraphView::setSliderColor(const QColor &color)
 {
 	_slider->setColor(color);
 	_sliderInfo->setColor(color);
+}
+
+void GraphView::changeEvent(QEvent *e)
+{
+	if (e->type() == QEvent::PaletteChange) {
+		_message->setBrush(QPalette().brush(QPalette::Disabled,
+		  QPalette::WindowText));
+		setBackgroundBrush(QBrush(palette().brush(QPalette::Base)));
+	}
+
+	QGraphicsView::changeEvent(e);
 }

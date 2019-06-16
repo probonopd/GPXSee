@@ -12,11 +12,13 @@
 #include <QRadioButton>
 #include <QLabel>
 #include <QSysInfo>
+#include "map/pcs.h"
 #include "icons.h"
 #include "colorbox.h"
 #include "stylecombobox.h"
 #include "oddspinbox.h"
 #include "percentslider.h"
+#include "limitedcombobox.h"
 #include "optionsdialog.h"
 
 
@@ -32,14 +34,19 @@ static QFrame *line()
 
 	return l;
 }
-#endif
+#endif // Q_OS_MAC
 
 QWidget *OptionsDialog::createMapPage()
 {
-	_alwaysShowMap = new QCheckBox(tr("Always show the map"));
-	_alwaysShowMap->setChecked(_options->alwaysShowMap);
-	_alwaysShowMap->setToolTip("<p>" +
-	  tr("Show the map even when no files are loaded.") + "</p>");
+	_projection = new LimitedComboBox(200);
+	QList<PCS::Info> projections(PCS::pcsList());
+	qSort(projections);
+	for (int i = 0; i < projections.size(); i++) {
+		QString text = QString::number(projections.at(i).id()) + " - "
+		  + projections.at(i).name();
+		_projection->addItem(text, QVariant(projections.at(i).id()));
+	}
+	_projection->setCurrentIndex(_projection->findData(_options->projection));
 
 #ifdef ENABLE_HIDPI
 	_hidpi = new QRadioButton(tr("High-resolution"));
@@ -60,14 +67,14 @@ QWidget *OptionsDialog::createMapPage()
 	llo->setFont(f);
 #endif // ENABLE_HIDPI
 
-	QFormLayout *showMapLayout = new QFormLayout();
-	showMapLayout->addWidget(_alwaysShowMap);
+	QFormLayout *vectorLayout = new QFormLayout();
+	vectorLayout->addRow(tr("Projection:"), _projection);
 
-	QWidget *mapTab = new QWidget();
-	QVBoxLayout *mapTabLayout = new QVBoxLayout();
-	mapTabLayout->addLayout(showMapLayout);
-	mapTabLayout->addStretch();
-	mapTab->setLayout(mapTabLayout);
+	QWidget *vectorMapsTab = new QWidget();
+	QVBoxLayout *vectorMapsTabLayout = new QVBoxLayout();
+	vectorMapsTabLayout->addLayout(vectorLayout);
+	vectorMapsTabLayout->addStretch();
+	vectorMapsTab->setLayout(vectorMapsTabLayout);
 
 #ifdef ENABLE_HIDPI
 	QVBoxLayout *hidpiTabLayout = new QVBoxLayout();
@@ -83,7 +90,7 @@ QWidget *OptionsDialog::createMapPage()
 #endif // ENABLE_HIDPI
 
 	QTabWidget *mapPage = new QTabWidget();
-	mapPage->addTab(mapTab, tr("General"));
+	mapPage->addTab(vectorMapsTab, tr("Vector maps"));
 #ifdef ENABLE_HIDPI
 	mapPage->addTab(hidpiTab, tr("HiDPI display mode"));
 #endif // ENABLE_HIDPI
@@ -93,22 +100,7 @@ QWidget *OptionsDialog::createMapPage()
 
 QWidget *OptionsDialog::createAppearancePage()
 {
-	// Paths
-	_baseColor = new ColorBox();
-	_baseColor->setColor(_options->palette.color());
-	_colorOffset = new QDoubleSpinBox();
-	_colorOffset->setMinimum(0);
-	_colorOffset->setMaximum(1.0);
-	_colorOffset->setSingleStep(0.01);
-	_colorOffset->setValue(_options->palette.shift());
-	QFormLayout *paletteLayout = new QFormLayout();
-	paletteLayout->addRow(tr("Base color:"), _baseColor);
-	paletteLayout->addRow(tr("Palette shift:"), _colorOffset);
-#ifndef Q_OS_MAC
-	QGroupBox *colorBox = new QGroupBox(tr("Colors"));
-	colorBox->setLayout(paletteLayout);
-#endif // Q_OS_MAC
-
+	// Tracks
 	_trackWidth = new QSpinBox();
 	_trackWidth->setValue(_options->trackWidth);
 	_trackWidth->setMinimum(1);
@@ -125,6 +117,7 @@ QWidget *OptionsDialog::createAppearancePage()
 	trackBox->setLayout(trackLayout);
 #endif // Q_OS_MAC
 
+	// Routes
 	_routeWidth = new QSpinBox();
 	_routeWidth->setValue(_options->routeWidth);
 	_routeWidth->setMinimum(1);
@@ -141,6 +134,38 @@ QWidget *OptionsDialog::createAppearancePage()
 	routeBox->setLayout(routeLayout);
 #endif // Q_OS_MAC
 
+	// Areas
+	_areaWidth = new QSpinBox();
+	_areaWidth->setValue(_options->areaWidth);
+	_areaStyle = new StyleComboBox();
+	_areaStyle->setValue(_options->areaStyle);
+	_areaOpacity = new PercentSlider();
+	_areaOpacity->setValue(_options->areaOpacity);
+	QFormLayout *areaLayout = new QFormLayout();
+#ifdef Q_OS_MAC
+	areaLayout->addRow(tr("Area border width:"), _areaWidth);
+	areaLayout->addRow(tr("Area border style:"), _areaStyle);
+	areaLayout->addRow(tr("Area fill opacity:"), _areaOpacity);
+#else // Q_OS_MAC
+	areaLayout->addRow(tr("Width:"), _areaWidth);
+	areaLayout->addRow(tr("Style:"), _areaStyle);
+	areaLayout->addRow(tr("Fill opacity:"), _areaOpacity);
+	QGroupBox *areaBox = new QGroupBox(tr("Areas"));
+	areaBox->setLayout(areaLayout);
+#endif // Q_OS_MAC
+
+	// Palette & antialiasing
+	_baseColor = new ColorBox();
+	_baseColor->setColor(_options->palette.color());
+	_colorOffset = new QDoubleSpinBox();
+	_colorOffset->setMinimum(0);
+	_colorOffset->setMaximum(1.0);
+	_colorOffset->setSingleStep(0.01);
+	_colorOffset->setValue(_options->palette.shift());
+	QFormLayout *paletteLayout = new QFormLayout();
+	paletteLayout->addRow(tr("Base color:"), _baseColor);
+	paletteLayout->addRow(tr("Palette shift:"), _colorOffset);
+
 	_pathAA = new QCheckBox(tr("Use anti-aliasing"));
 	_pathAA->setChecked(_options->pathAntiAliasing);
 	QFormLayout *pathAALayout = new QFormLayout();
@@ -149,17 +174,18 @@ QWidget *OptionsDialog::createAppearancePage()
 	QWidget *pathTab = new QWidget();
 	QVBoxLayout *pathTabLayout = new QVBoxLayout();
 #ifdef Q_OS_MAC
-	pathTabLayout->addLayout(paletteLayout);
-	pathTabLayout->addWidget(line());
 	pathTabLayout->addLayout(trackLayout);
 	pathTabLayout->addWidget(line());
 	pathTabLayout->addLayout(routeLayout);
 	pathTabLayout->addWidget(line());
+	pathTabLayout->addLayout(areaLayout);
+	pathTabLayout->addWidget(line());
 #else // Q_OS_MAC
-	pathTabLayout->addWidget(colorBox);
 	pathTabLayout->addWidget(trackBox);
 	pathTabLayout->addWidget(routeBox);
+	pathTabLayout->addWidget(areaBox);
 #endif // Q_OS_MAC
+	pathTabLayout->addLayout(paletteLayout);
 	pathTabLayout->addLayout(pathAALayout);
 	pathTabLayout->addStretch();
 	pathTab->setLayout(pathTabLayout);
@@ -242,6 +268,7 @@ QWidget *OptionsDialog::createAppearancePage()
 	_backgroundColor = new ColorBox();
 	_backgroundColor->setColor(_options->backgroundColor);
 	_backgroundColor->enableAlphaChannel(false);
+
 	QFormLayout *mapLayout = new QFormLayout();
 	mapLayout->addRow(tr("Background color:"), _backgroundColor);
 	mapLayout->addRow(tr("Map opacity:"), _mapOpacity);
@@ -298,10 +325,6 @@ QWidget *OptionsDialog::createDataPage()
 
 	QFormLayout *outlierLayout = new QFormLayout();
 	outlierLayout->addWidget(_outlierEliminate);
-#ifndef Q_OS_MAC
-	QGroupBox *outlierBox = new QGroupBox(tr("Outlier elimination"));
-	outlierBox->setLayout(outlierLayout);
-#endif // Q_OS_MAC
 
 	QWidget *filterTab = new QWidget();
 	QVBoxLayout *filterTabLayout = new QVBoxLayout();
@@ -309,11 +332,10 @@ QWidget *OptionsDialog::createDataPage()
 	filterTabLayout->addWidget(new QLabel(tr("Smoothing:")));
 	filterTabLayout->addLayout(smoothLayout);
 	filterTabLayout->addWidget(line());
-	filterTabLayout->addLayout(outlierLayout);
 #else // Q_OS_MAC
 	filterTabLayout->addWidget(smoothBox);
-	filterTabLayout->addWidget(outlierBox);
 #endif // Q_OS_MAC
+	filterTabLayout->addLayout(outlierLayout);
 	filterTabLayout->addStretch();
 	filterTab->setLayout(filterTabLayout);
 
@@ -345,31 +367,78 @@ QWidget *OptionsDialog::createDataPage()
 	pauseTab->setLayout(pauseLayout);
 
 
-	_computed = new QRadioButton(tr("Computed from distance/time"));
-	_reported = new QRadioButton(tr("Recorded by device"));
+	_computedSpeed = new QRadioButton(tr("Computed from distance/time"));
+	_reportedSpeed = new QRadioButton(tr("Recorded by device"));
 	if (_options->useReportedSpeed)
-		_reported->setChecked(true);
+		_reportedSpeed->setChecked(true);
 	else
-		_computed->setChecked(true);
+		_computedSpeed->setChecked(true);
 
-	QFormLayout *sourceLayout = new QFormLayout();
-	sourceLayout->addWidget(_computed);
-	sourceLayout->addWidget(_reported);
+	_dataGPSElevation = new QRadioButton(tr("GPS data"));
+	_dataDEMElevation = new QRadioButton(tr("DEM data"));
+	if (_options->dataUseDEM)
+		_dataDEMElevation->setChecked(true);
+	else
+		_dataGPSElevation->setChecked(true);
+
 
 	QWidget *sourceTab = new QWidget();
-	sourceTab->setLayout(sourceLayout);
+	QVBoxLayout *sourceTabLayout = new QVBoxLayout();
+
+#ifdef Q_OS_MAC
+	QVBoxLayout *speedOptions = new QVBoxLayout();
+	speedOptions->addWidget(_computedSpeed);
+	speedOptions->addWidget(_reportedSpeed);
+
+	QVBoxLayout *elevationOptions = new QVBoxLayout();
+	elevationOptions->addWidget(_dataGPSElevation);
+	elevationOptions->addWidget(_dataDEMElevation);
+
+	QFormLayout *formLayout = new QFormLayout();
+	formLayout->addRow(tr("Speed:"), speedOptions);
+	formLayout->addRow(tr("Elevation:"), elevationOptions);
+
+	sourceTabLayout->addLayout(formLayout);
+#else // Q_OS_MAC
+	QFormLayout *speedLayout = new QFormLayout();
+	QFormLayout *elevationLayout = new QFormLayout();
+
+	speedLayout->addWidget(_computedSpeed);
+	speedLayout->addWidget(_reportedSpeed);
+
+	QGroupBox *speedBox = new QGroupBox(tr("Speed"));
+	speedBox->setLayout(speedLayout);
+
+	elevationLayout->addWidget(_dataGPSElevation);
+	elevationLayout->addWidget(_dataDEMElevation);
+
+	QGroupBox *elevationBox = new QGroupBox(tr("Elevation"));
+	elevationBox->setLayout(elevationLayout);
+
+	sourceTabLayout->addWidget(speedBox);
+	sourceTabLayout->addWidget(elevationBox);
+#endif // Q_OS_MAC
+	sourceTabLayout->addStretch();
+	sourceTab->setLayout(sourceTabLayout);
 
 
 	QTabWidget *filterPage = new QTabWidget();
 	filterPage->addTab(filterTab, tr("Filtering"));
+	filterPage->addTab(sourceTab, tr("Sources"));
 	filterPage->addTab(pauseTab, tr("Pause detection"));
-	filterPage->addTab(sourceTab, tr("Speed"));
 
 	return filterPage;
 }
 
 QWidget *OptionsDialog::createPOIPage()
 {
+	_poiGPSElevation = new QRadioButton(tr("GPS data"));
+	_poiDEMElevation = new QRadioButton(tr("DEM data"));
+	if (_options->poiUseDEM)
+		_poiDEMElevation->setChecked(true);
+	else
+		_poiGPSElevation->setChecked(true);
+
 	_poiRadius = new QDoubleSpinBox();
 	_poiRadius->setSingleStep(1);
 	_poiRadius->setDecimals(1);
@@ -384,8 +453,13 @@ QWidget *OptionsDialog::createPOIPage()
 		_poiRadius->setSuffix(UNIT_SPACE + tr("km"));
 	}
 
+	QVBoxLayout *elevationLayout = new QVBoxLayout();
+	elevationLayout->addWidget(_poiGPSElevation);
+	elevationLayout->addWidget(_poiDEMElevation);
+
 	QFormLayout *poiLayout = new QFormLayout();
-	poiLayout->addRow(tr("POI radius:"), _poiRadius);
+	poiLayout->addRow(tr("Radius:"), _poiRadius);
+	poiLayout->addRow(tr("Elevation:"), elevationLayout);
 
 	QWidget *poiTab = new QWidget();
 	poiTab->setLayout(poiLayout);
@@ -578,6 +652,10 @@ void OptionsDialog::accept()
 	_options->routeStyle = (Qt::PenStyle) _routeStyle->itemData(
 	  _routeStyle->currentIndex()).toInt();
 	_options->pathAntiAliasing = _pathAA->isChecked();
+	_options->areaWidth = _areaWidth->value();
+	_options->areaStyle = (Qt::PenStyle) _areaStyle->itemData(
+	  _areaStyle->currentIndex()).toInt();
+	_options->areaOpacity = _areaOpacity->value();
 	_options->waypointSize = _waypointSize->value();
 	_options->waypointColor = _waypointColor->color();
 	_options->poiSize = _poiSize->value();
@@ -586,7 +664,8 @@ void OptionsDialog::accept()
 	_options->sliderColor = _sliderColor->color();
 	_options->graphAntiAliasing = _graphAA->isChecked();
 
-	_options->alwaysShowMap = _alwaysShowMap->isChecked();
+	_options->projection = _projection->itemData(_projection->currentIndex())
+	  .toInt();
 #ifdef ENABLE_HIDPI
 	_options->hidpiMap = _hidpi->isChecked();
 #endif // ENABLE_HIDPI
@@ -603,13 +682,15 @@ void OptionsDialog::accept()
 	if (qAbs(pauseSpeed - _options->pauseSpeed) > 0.01)
 		_options->pauseSpeed = pauseSpeed;
 	_options->pauseInterval = _pauseInterval->value();
-	_options->useReportedSpeed = _reported->isChecked();
+	_options->useReportedSpeed = _reportedSpeed->isChecked();
+	_options->dataUseDEM = _dataDEMElevation->isChecked();
 
 	qreal poiRadius = (_options->units == Imperial)
 		? _poiRadius->value() * MIINM : (_options->units == Nautical)
 		? _poiRadius->value() * NMIINM : _poiRadius->value() * KMINM;
 	if (qAbs(poiRadius - _options->poiRadius) > 0.01)
 		_options->poiRadius = poiRadius;
+	_options->poiUseDEM = _poiDEMElevation->isChecked();
 
 	_options->useOpenGL = _useOpenGL->isChecked();
 #ifdef ENABLE_HTTP2

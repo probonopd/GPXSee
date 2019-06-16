@@ -4,6 +4,7 @@
 #include <QVector>
 #include <QSet>
 #include <QDateTime>
+#include <QDir>
 #include "trackdata.h"
 #include "graph.h"
 #include "path.h"
@@ -32,7 +33,7 @@ public:
 	const QString &name() const {return _data.name();}
 	const QString &description() const {return _data.description();}
 
-	bool isNull() const {return (_data.size() < 2);}
+	bool isValid() const;
 
 	static void setElevationFilter(int window) {_elevationWindow = window;}
 	static void setSpeedFilter(int window) {_speedWindow = window;}
@@ -44,19 +45,21 @@ public:
 	static void setOutlierElimination(bool eliminate)
 	  {_outlierEliminate = eliminate;}
 	static void useReportedSpeed(bool use) {_useReportedSpeed = use;}
+	static void useDEM(bool use) {_useDEM = use;}
 
 private:
-	bool discardStopPoint(int i) const;
+	struct Segment {
+		QVector<qreal> distance;
+		QVector<qreal> time;
+		QVector<qreal> speed;
+		QSet<int> outliers;
+		QSet<int> stop;
+	};
 
-	const TrackData &_data;
+	bool discardStopPoint(const Segment &seg, int i) const;
 
-	QVector<qreal> _distance;
-	QVector<qreal> _time;
-	QVector<qreal> _speed;
-
-	QSet<int> _outliers;
-	QSet<int> _stop;
-
+	TrackData _data;
+	QList<Segment> _segments;
 	qreal _pause;
 
 	static bool _outlierEliminate;
@@ -68,6 +71,7 @@ private:
 	static qreal _pauseSpeed;
 	static int _pauseInterval;
 	static bool _useReportedSpeed;
+	static bool _useDEM;
 };
 
 #endif // TRACK_H

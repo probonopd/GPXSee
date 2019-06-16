@@ -264,12 +264,12 @@ bool WMS::getCapabilities(const QString &url, const QString &file,
 	if (d.get(dl, authorization))
 		wait.exec();
 
-	if (QFileInfo(file).exists())
-		return true;
-	else {
+	if (!QFileInfo(file).exists()) {
 		_errorString = "Error downloading capabilities XML file";
 		return false;
 	}
+
+	return true;
 }
 
 WMS::WMS(const QString &file, const WMS::Setup &setup) : _valid(false)

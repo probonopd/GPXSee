@@ -7,7 +7,7 @@
 ; The name of the installer
 Name "GPXSee"
 ; Program version
-!define VERSION "7.0"
+!define VERSION "7.9"
 
 ; The file to write
 OutFile "GPXSee-${VERSION}_x64.exe"
@@ -113,17 +113,18 @@ Section "GPXSee" SEC_APP
 
   ; Associate file formats
   DetailPrint "Associating file types..."
-  !insertmacro FILE_ASSOCIATION_ADD "gpx" "GPS Exchange Format" 4
-  !insertmacro FILE_ASSOCIATION_ADD "tcx" "Training Center XML" 5
-  !insertmacro FILE_ASSOCIATION_ADD "kml" "Keyhole Markup Language" 6
-  !insertmacro FILE_ASSOCIATION_ADD "fit" "Flexible and Interoperable Data Transfer" 7
-  !insertmacro FILE_ASSOCIATION_ADD "igc" "Flight Recorder Data Format" 8
-  !insertmacro FILE_ASSOCIATION_ADD "nmea" "NMEA 0183 data" 9
-  !insertmacro FILE_ASSOCIATION_ADD "plt" "OziExplorer Track Point File" 10
-  !insertmacro FILE_ASSOCIATION_ADD "rte" "OziExplorer Route File" 11
+  !insertmacro FILE_ASSOCIATION_ADD "gpx" "GPS Exchange Format" 5
+  !insertmacro FILE_ASSOCIATION_ADD "tcx" "Training Center XML" 6
+  !insertmacro FILE_ASSOCIATION_ADD "kml" "Keyhole Markup Language" 7
+  !insertmacro FILE_ASSOCIATION_ADD "fit" "Flexible and Interoperable Data Transfer" 8
+  !insertmacro FILE_ASSOCIATION_ADD "igc" "Flight Recorder Data Format" 9
+  !insertmacro FILE_ASSOCIATION_ADD "nmea" "NMEA 0183 data" 10
+  !insertmacro FILE_ASSOCIATION_ADD "plt" "OziExplorer Track Point File" 11
+  !insertmacro FILE_ASSOCIATION_ADD "rte" "OziExplorer Route File" 12
   !insertmacro FILE_ASSOCIATION_ADD "wpt" "OziExplorer Waypoint File" 1
   !insertmacro FILE_ASSOCIATION_ADD "loc" "Geocaching.com Waypoint File" 2
   !insertmacro FILE_ASSOCIATION_ADD "slf" "Sigma Log File" 3
+  !insertmacro FILE_ASSOCIATION_ADD "geojson" "GeoJSON" 4
   System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
 
 SectionEnd
@@ -189,7 +190,9 @@ SectionGroup "Localization" SEC_LOCALIZATION
   !insertmacro LOCALIZATION "German" "de"
   !insertmacro LOCALIZATION "Norwegian" "nb"
   !insertmacro LOCALIZATION "Polish" "pl"
+  !insertmacro LOCALIZATION "Portuguese (Brazil)" "pt_BR"
   !insertmacro LOCALIZATION "Russian" "ru"
+  !insertmacro LOCALIZATION "Spanish" "es"
   !insertmacro LOCALIZATION "Swedish" "sv"
   !insertmacro LOCALIZATION "Turkish" "tr"
 SectionGroupEnd
@@ -226,6 +229,7 @@ Section "Uninstall"
   !insertmacro FILE_ASSOCIATION_REMOVE "wpt"
   !insertmacro FILE_ASSOCIATION_REMOVE "loc"
   !insertmacro FILE_ASSOCIATION_REMOVE "slf"
+  !insertmacro FILE_ASSOCIATION_REMOVE "geojson"
   System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
 
 SectionEnd
